@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -39,13 +38,13 @@ class AuctionScreen extends StatelessWidget {
                     children: [
                       Text("Starting Price: \$${auction.startingPrice}"),
                       Text(
-                        "Current Bid: \$${auction.highestBid ?? auction.startingPrice}", // ✅ Fixed
+                        "Current Bid: \$${auction.highestBid ?? auction.startingPrice}", // ✅ Fixed null-safe check
                         style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
                       ),
                       Text("Highest Bidder: ${auction.highestBidderId ?? 'None'}"),
                       Text(
-                        "Ends on: ${auction.endTime is Timestamp ? (auction.endTime as Timestamp).toDate() : auction.endTime}", 
-                      ), // ✅ Fixed Firestore Timestamp Handling
+                        "Ends on: ${auction.endTime.toDate()}",
+                      ), // ✅ Removed unnecessary type check
                     ],
                   ),
                   trailing: ElevatedButton(
