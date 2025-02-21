@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "808803465640",
+    "project_id": "kutanda-6acd5",
+    "storage_bucket": "kutanda-6acd5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:808803465640:android:860361cc7c25335c57c59d",
+        "android_client_info": {
+          "package_name": "com.example.kutanda_plant_auction"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "808803465640-74d0uvumti81m0p6oi137ddfba5trd3c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC9Af6mT0UEUEgTlJPgBnXUuwK5QFEM4OM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "808803465640-5enopgs5q22pvm36dal6sdmnj5t645dv.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "808803465640-jlnbrqjti8a7vtr4j5ap94je1o0i79lm.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.kutandaPlantAuction"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

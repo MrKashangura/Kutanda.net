@@ -1,0 +1,42 @@
+name: kutanda_plant_auction
+description: "A Flutter-based plant auction platform."
+
+publish_to: 'none' 
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.6.2 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase dependencies
+  firebase_core: ^2.30.1
+  firebase_auth: ^4.19.1
+  cloud_firestore: ^4.17.2  # Firestore for storing user data
+
+  # Authentication
+  google_sign_in: ^6.2.1  # Google Auth (Disabled for now)
+  flutter_facebook_auth: ^6.0.2  # Facebook Auth (Disabled for now)
+
+  # UI & Icons
+  cupertino_icons: ^1.0.8
+  pinput: ^4.0.0  # OTP Input UI for phone authentication
+
+  # State Management
+  provider: 6.0.5  # Manage user authentication state
+
+  # Local Storage for Session Management
+  shared_preferences: ^2.2.2  # Store login state
+  uuid: ^4.5.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
