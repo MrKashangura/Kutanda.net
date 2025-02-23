@@ -27,7 +27,7 @@ class SessionService {
       final response = await supabase
           .from('users')
           .select('role')
-          .eq('auth_id', user.id)
+          .eq('uid', user.id)
           .maybeSingle(); // ✅ FIXED: Access response directly
 
       if (response == null) {

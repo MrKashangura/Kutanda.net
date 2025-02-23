@@ -11,7 +11,7 @@ class UserService {
       final response = await supabase
           .from('users')
           .select('role')
-          .eq('id', uid)
+          .eq('uid', uid)
           .maybeSingle(); // ✅ Use maybeSingle() to prevent errors
 
       if (response != null) {
