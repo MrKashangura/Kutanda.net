@@ -1,5 +1,5 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/session_service.dart';
 import 'login_screen.dart';
@@ -10,13 +10,15 @@ class AdminDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Admin Dashboard"),
-      actions: [ // ✅ Add the logout button to the AppBar actions
+      appBar: AppBar(
+        title: const Text("Admin Dashboard"),
+        actions: [
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              await FirebaseAuth.instance.signOut();
+              await Supabase.instance.client.auth.signOut(); // ✅ Use Supabase logout
               await SessionService.clearSession();
+
               if (!context.mounted) return;
               Navigator.pushReplacement(
                 context,
@@ -26,7 +28,8 @@ class AdminDashboard extends StatelessWidget {
           ),
         ],
       ),
-      body: Center(child: Text("Welcome Admin")),
+      body: const Center(child: Text("Welcome Admin")),
     );
   }
 }
+

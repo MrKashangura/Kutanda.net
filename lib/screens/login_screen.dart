@@ -1,5 +1,5 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/session_service.dart';
 import '../services/user_service.dart';
@@ -15,56 +15,69 @@ class LoginScreen extends StatefulWidget {
 }
 
 class LoginScreenState extends State<LoginScreen> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final SupabaseClient supabase = Supabase.instance.client;
   final UserService _userService = UserService();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final _formKey = GlobalKey<FormState>(); // ✅ Form validation key
+  final _formKey = GlobalKey<FormState>();
 
   Future<void> loginUser() async {
-    if (!_formKey.currentState!.validate()) return; // ✅ Ensure form is valid before login
+    if (!_formKey.currentState!.validate()) return;
 
     try {
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+      final response = await supabase.auth.signInWithPassword(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
 
-      User? user = userCredential.user;
+      final user = response.user;
       if (user != null) {
-        debugPrint("Authenticated User UID: ${user.uid}"); // ✅ Debug UID
+        debugPrint("✅ Authenticated User UID: ${user.id}");
 
-        String? role = await _userService.getUserRole(user.uid);
-        debugPrint("User role fetched: $role");  // ✅ Debug role
+        String? role = await _userService.getUserRole(user.id);
+        debugPrint("✅ User role fetched: $role");
 
         if (role != null) {
-          await SessionService.saveUserSession(user.uid, role);
+          await SessionService.saveUserSession(user.id, role);
           navigateBasedOnRole(role);
         } else {
-          showErrorMessage("Role not found. Contact support.");
+          showErrorMessage("⚠️ Role not found. Contact support.");
         }
       }
+    } on AuthException catch (e) {
+      showErrorMessage("❌ Login failed: ${e.message}");
     } catch (e) {
-      showErrorMessage("Login failed: $e");
+      showErrorMessage("❌ Unexpected error: $e");
     }
   }
 
   void navigateBasedOnRole(String role) {
-    if (!mounted) return; // ✅ Fix: Prevent navigation errors when widget is disposed
+    if (!mounted) return;
 
-    if (role == "buyer") {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const BuyerDashboard()));
-    } else if (role == "seller") {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const SellerDashboard()));
-    } else if (role == "admin") {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AdminDashboard()));
-    } else {
-      debugPrint("Unknown role.");
+    Widget screen;
+    switch (role) {
+      case "buyer":
+        screen = const BuyerDashboard();
+        break;
+      case "seller":
+        screen = const SellerDashboard();
+        break;
+      case "admin":
+        screen = const AdminDashboard();
+        break;
+      default:
+        debugPrint("⚠️ Unknown role.");
+        return;
     }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => screen),
+    );
   }
 
   void showErrorMessage(String message) {
-    if (!mounted) return; // ✅ Fix: Ensure context is available before showing Snackbar
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
@@ -72,39 +85,31 @@ class LoginScreenState extends State<LoginScreen> {
   }
 
   @override
-  Widget build(BuildContext context) { // ✅ Fix: Add missing build method
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Login")),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
-          key: _formKey, // ✅ Attach the form key
+          key: _formKey,
           child: Column(
             children: [
               TextFormField(
                 controller: emailController,
                 decoration: const InputDecoration(labelText: "Email"),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return "Please enter your email";
-                  }
-                  return null;
-                },
+                validator: (value) =>
+                    value == null || value.isEmpty ? "Please enter your email" : null,
               ),
               TextFormField(
                 controller: passwordController,
                 decoration: const InputDecoration(labelText: "Password"),
                 obscureText: true,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return "Please enter your password";
-                  }
-                  return null;
-                },
+                validator: (value) =>
+                    value == null || value.isEmpty ? "Please enter your password" : null,
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: loginUser, // ✅ Fix: Ensure function reference is correct
+                onPressed: loginUser,
                 child: const Text("Login"),
               ),
             ],
@@ -113,4 +118,4 @@ class LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-} // ✅ Fix: Ensure class is properly closed
+}

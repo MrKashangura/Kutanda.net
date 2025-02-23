@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class Auction {
   String id;
   String sellerId;
@@ -7,8 +5,9 @@ class Auction {
   String description;
   double startingPrice;
   double highestBid;
+  double bidIncrement;
   String? highestBidderId;
-  Timestamp endTime; // ✅ Firestore-compatible Timestamp
+  DateTime endTime; // ✅ Use DateTime for Supabase compatibility
   List<String> imageUrls;
   bool isActive;
 
@@ -18,41 +17,46 @@ class Auction {
     required this.title,
     required this.description,
     required this.startingPrice,
-    double? highestBid, // ✅ Ensure default bid is set
+    double? highestBid,
     this.highestBidderId,
+    required this.bidIncrement,
     required this.endTime,
     required this.imageUrls,
     required this.isActive,
   }) : highestBid = highestBid ?? startingPrice; // ✅ Default highestBid to startingPrice
 
-  // ✅ Convert Auction to Firestore Map
+  /// **Convert Auction to Supabase Map**
   Map<String, dynamic> toMap() {
     return {
-      'sellerId': sellerId,
+      'id': id,
+      'seller_id': sellerId,
       'title': title,
       'description': description,
-      'startingPrice': startingPrice,
-      'highestBid': highestBid,
-      'highestBidderId': highestBidderId,
-      'endTime': endTime, // ✅ Stored as Timestamp in Firestore
-      'imageUrls': imageUrls,
-      'isActive': isActive,
+      'starting_price': startingPrice,
+      'highest_bid': highestBid,
+      'bid_increment': bidIncrement, // ✅ FIXED: Include bidIncrement
+      'highest_bidder_id': highestBidderId,
+      'end_time': endTime.toIso8601String(), // ✅ Convert DateTime to ISO string
+      'image_urls': imageUrls,
+      'is_active': isActive,
     };
   }
 
-  // ✅ Create Auction from Firestore Map
-  factory Auction.fromMap(Map<String, dynamic> map, String documentId) {
+  /// **Create Auction from Supabase Map**
+  factory Auction.fromMap(Map<String, dynamic> map) {
     return Auction(
-      id: documentId,
-      sellerId: map['sellerId'],
+      id: map['id'],
+      sellerId: map['seller_id'],
       title: map['title'],
       description: map['description'],
-      startingPrice: (map['startingPrice'] as num).toDouble(), // ✅ Convert to double safely
-      highestBid: (map['highestBid'] as num?)?.toDouble() ?? (map['startingPrice'] as num).toDouble(),
-      highestBidderId: map['highestBidderId'],
-      endTime: map['endTime'], // ✅ Firestore Timestamp (No conversion needed)
-      imageUrls: List<String>.from(map['imageUrls']),
-      isActive: map['isActive'],
+      startingPrice: (map['starting_price'] as num).toDouble(),
+      highestBid: (map['highest_bid'] as num?)?.toDouble() ?? (map['starting_price'] as num).toDouble(),
+      bidIncrement: (map['bid_increment'] as num).toDouble(), // ✅ Ensure bid_increment is fetched
+      highestBidderId: map['highest_bidder_id'],
+      endTime: DateTime.parse(map['end_time']), // ✅ Convert from ISO 8601 string
+      imageUrls: List<String>.from(map['image_urls']),
+      isActive: map['is_active'],
     );
   }
 }
+

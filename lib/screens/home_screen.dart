@@ -1,6 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'login_screen.dart';
 
@@ -12,9 +11,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class HomeScreenState extends State<HomeScreen> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  User? user;
+  final SupabaseClient supabase = Supabase.instance.client;
   Map<String, dynamic>? userData;
 
   @override
@@ -23,20 +20,31 @@ class HomeScreenState extends State<HomeScreen> {
     _fetchUserData();
   }
 
-  Future<void> _fetchUserData() async {
-    user = _auth.currentUser;
-    if (user != null) {
-      DocumentSnapshot doc = await _firestore.collection('users').doc(user!.uid).get();
-      if (doc.exists) {
-        final fetchedUserData = doc.data() as Map<String, dynamic>;
+ Future<void> _fetchUserData() async {
+  final user = supabase.auth.currentUser;
+  if (user != null) {
+    final response = await supabase
+        .from('users')
+        .select()
+        .eq('id', user.id)
+        .maybeSingle(); // ✅ Use maybeSingle() to prevent errors
 
-        if (mounted) { // ✅ Ensure widget is still active
-          setState(() {
-            userData = fetchedUserData;
-          });
-        }
-      }
+    if (response != null && mounted) { 
+      setState(() {
+        userData = response;
+      });
     }
+  }
+}
+
+
+  Future<void> _logout() async {
+    await supabase.auth.signOut();
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
   }
 
   @override
@@ -47,17 +55,7 @@ class HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () async {
-              final BuildContext currentContext = context; // ✅ Save BuildContext
-              await _auth.signOut();
-              if (!mounted) return; // ✅ Prevent navigation if widget is disposed
-              if (!context.mounted) return; // Ensure widget is still in the tree
-              Navigator.pushReplacementNamed(context, '/login');
-              Navigator.pushReplacement(
-                currentContext, // ✅ Use saved context
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-              );
-            },
+            onPressed: _logout,
           ),
         ],
       ),
@@ -68,18 +66,18 @@ class HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    "Welcome, ${userData!['name'] ?? "User"}", // ✅ Default value
+                    "Welcome, ${userData!['name'] ?? "User"}", 
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 20),
                   CircleAvatar(
                     radius: 40,
-                    backgroundImage: userData!['profilePic'] != null && userData!['profilePic']!.isNotEmpty
-                        ? NetworkImage(userData!['profilePic']!)
-                        : const NetworkImage("https://via.placeholder.com/150"), // ✅ Default image
+                    backgroundImage: userData!['profile_pic'] != null && userData!['profile_pic']!.isNotEmpty
+                        ? NetworkImage(userData!['profile_pic']!)
+                        : const NetworkImage("https://via.placeholder.com/150"), 
                   ),
                   const SizedBox(height: 10),
-                  Text(userData!['email'] ?? "No email provided"), // ✅ Default value
+                  Text(userData!['email'] ?? "No email provided"), 
                 ],
               ),
       ),

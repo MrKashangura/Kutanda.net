@@ -1,7 +1,6 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'firebase_options.dart';
 import 'screens/admin_dashboard.dart';
 import 'screens/buyer_dashboard.dart';
 import 'screens/csr_dashboard.dart';
@@ -11,13 +10,12 @@ import 'services/session_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // ✅ Ensure Firebase is initialized with the correct options
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+  await Supabase.initialize(
+    url: 'https://dcjycjiqelcftxbymley.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjanljamlxZWxjZnR4YnltbGV5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAyMTIwNTksImV4cCI6MjA1NTc4ODA1OX0.DmLByHHoWeRPusRD2EoYLxxk5F_soscl3jKg7mE4pPM',
   );
 
-  runApp(const AppInitializer()); // ✅ Handle session loading before rendering MyApp
+  runApp(const AppInitializer()); // ✅ Properly initialize session
 }
 
 class AppInitializer extends StatefulWidget {

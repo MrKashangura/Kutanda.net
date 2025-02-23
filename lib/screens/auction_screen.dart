@@ -1,5 +1,5 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/auction_model.dart';
 import '../services/auction_service.dart';
@@ -38,13 +38,11 @@ class AuctionScreen extends StatelessWidget {
                     children: [
                       Text("Starting Price: \$${auction.startingPrice}"),
                       Text(
-                        "Current Bid: \$${auction.highestBid ?? auction.startingPrice}", // ✅ Fixed null-safe check
+                        "Current Bid: \$${auction.highestBid}",
                         style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
                       ),
                       Text("Highest Bidder: ${auction.highestBidderId ?? 'None'}"),
-                      Text(
-                        "Ends on: ${auction.endTime.toDate()}",
-                      ), // ✅ Removed unnecessary type check
+                      Text("Ends on: ${auction.endTime}"),
                     ],
                   ),
                   trailing: ElevatedButton(
@@ -62,7 +60,16 @@ class AuctionScreen extends StatelessWidget {
 
   void _placeBid(BuildContext context, Auction auction) {
     TextEditingController bidController = TextEditingController();
-    String bidderId = FirebaseAuth.instance.currentUser?.uid ?? "anonymous";
+    final user = Supabase.instance.client.auth.currentUser;
+
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please sign in to place a bid.")),
+      );
+      return;
+    }
+
+    String bidderId = user.id;
 
     showDialog(
       context: context,
@@ -81,7 +88,7 @@ class AuctionScreen extends StatelessWidget {
           TextButton(
             onPressed: () async {
               double? bidAmount = double.tryParse(bidController.text);
-              if (bidAmount == null || bidAmount <= (auction.highestBid ?? auction.startingPrice)) {
+              if (bidAmount == null || bidAmount <= auction.highestBid) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("Enter a valid higher bid.")),

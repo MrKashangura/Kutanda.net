@@ -1,8 +1,10 @@
 import 'dart:developer';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../services/session_service.dart';
+import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -12,27 +14,50 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class RegisterScreenState extends State<RegisterScreen> {
+  final SupabaseClient supabase = Supabase.instance.client;
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   Future<void> _registerUser() async {
+    if (!_formKey.currentState!.validate()) return; // ✅ Ensure form validation before submission
+
     try {
-      UserCredential userCredential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
+      final response = await supabase.auth.signUp(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
       );
 
-      await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
-        'email': _emailController.text,
-        'role': 'buyer', // Default role, can be changed
-      });
+      final user = response.user;
+      if (user != null) {
+        await supabase.from('users').insert({
+          'id': user.id,  // ✅ Store user ID in Supabase DB
+          'email': _emailController.text,
+          'role': 'buyer', // ✅ Default role (can be changed)
+          'created_at': DateTime.now().toIso8601String(),
+        });
 
-      log("✅ User Registered: ${userCredential.user!.uid}");
+        log("✅ User Registered: ${user.id}");
+
+        // Save session & navigate to login
+        await SessionService.saveUserSession(user.id, 'buyer');
+
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+      }
+    } on AuthException catch (e) {
+      showErrorMessage("❌ Registration failed: ${e.message}");
     } catch (e) {
-      log("❌ Registration Error: $e");
+      showErrorMessage("❌ Unexpected error: $e");
     }
+  }
+
+  void showErrorMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -60,11 +85,7 @@ class RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      _registerUser(); // ✅ Call function when button is clicked
-                    }
-                  },
+                  onPressed: _registerUser,
                   child: const Text("Register"),
                 ),
               ],

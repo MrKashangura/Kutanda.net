@@ -1,18 +1,24 @@
 import 'dart:developer'; // ✅ Use proper logging
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UserService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final SupabaseClient supabase = Supabase.instance.client;
 
+  /// **Fetch user role from Supabase**
   Future<String?> getUserRole(String uid) async {
     try {
-      DocumentSnapshot userDoc = await _db.collection('users').doc(uid).get();
-      if (userDoc.exists && userDoc.data() != null) {
-        return userDoc.get('role');
+      final response = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', uid)
+          .maybeSingle(); // ✅ Use maybeSingle() to prevent errors
+
+      if (response != null) {
+        return response['role'] as String?;
       }
     } catch (e) {
-      log("Error fetching user role: $e"); // ✅ Replace print with log
+      log("❌ Error fetching user role: $e");
     }
     return null;
   }

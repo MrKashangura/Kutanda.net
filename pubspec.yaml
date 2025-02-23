@@ -11,11 +11,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # Firebase dependencies
-  firebase_core: ^2.30.1
-  firebase_auth: ^4.19.1
-  cloud_firestore: ^4.17.2  # Firestore for storing user data
+  http: ^0.13.5
+  flutter_secure_storage: ^8.0.0
+  jwt_decoder: ^2.0.1
+  image_picker: ^1.0.7
 
   # Authentication
   google_sign_in: ^6.2.1  # Google Auth (Disabled for now)
@@ -31,6 +30,7 @@ dependencies:
   # Local Storage for Session Management
   shared_preferences: ^2.2.2  # Store login state
   uuid: ^4.5.1
+  supabase_flutter: ^2.8.3  # ✅ Supabase is now your backend!
 
 dev_dependencies:
   flutter_test:
