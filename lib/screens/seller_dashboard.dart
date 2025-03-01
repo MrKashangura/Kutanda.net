@@ -20,41 +20,143 @@ class _SellerDashboardState extends State<SellerDashboard> {
   final AuctionService auctionService = AuctionService();
   final ApiService _apiService = ApiService();
   final SupabaseClient supabase = Supabase.instance.client;
+  bool _isLoading = false;
 
   Future<void> _switchToBuyer() async {
-    bool success = await _apiService.switchRole('seller');
-    if (!mounted) return;
+    setState(() => _isLoading = true);
+    
+    try {
+      bool success = await _apiService.switchRole('seller');
+      
+      // Ensure the widget is still mounted before using context
+      if (!mounted) return;
 
-    if (success) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const BuyerDashboard()),
-      );
+      if (success) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const BuyerDashboard()),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Switched to Buyer mode')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to switch role')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Switched to Buyer mode')),
+        SnackBar(content: Text('Error: $e')),
       );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to switch role')),
-      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   Future<void> _logout() async {
-    showDialog(
+    setState(() => _isLoading = true);
+    
+    try {
+      // Show loading dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => const Center(child: CircularProgressIndicator()),
+        );
+      }
+      
+      await supabase.auth.signOut();
+      await SessionService.clearSession();
+      
+      // Important: Check if still mounted before using context
+      if (!mounted) return;
+      
+      // Close loading dialog first
+      Navigator.of(context).pop();
+      
+      // Navigate to login screen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      
+      // Close loading dialog if open
+      Navigator.of(context).pop();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error logging out: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _deleteAuction(Auction auction) async {
+    bool? confirmDelete = await showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) =>
-          const Center(child: CircularProgressIndicator()),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text("Delete Auction"),
+        content: const Text(
+            "Are you sure you want to delete this auction? This action cannot be undone."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text("Delete",
+                style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
     );
-    await supabase.auth.signOut(); // ✅ Use Supabase Auth for logout
-    await SessionService.clearSession();
-    if (!mounted) return;
-    Navigator.pop(context); // Close loading dialog
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-    );
+
+    if (confirmDelete == true) {
+      // Show loading indicator
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (loadingContext) => const Center(child: CircularProgressIndicator()),
+        );
+      }
+
+      try {
+        // Perform the deletion process asynchronously
+        await auctionService.deleteAuction(auction.id);
+        
+        // Check if widget is still mounted before proceeding
+        if (!mounted) return;
+        
+        // Close the loading dialog
+        Navigator.of(context).pop();
+        
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Auction deleted successfully")),
+        );
+      } catch (e) {
+        // Check if widget is still mounted before proceeding
+        if (!mounted) return;
+        
+        // Close the loading dialog
+        Navigator.of(context).pop();
+        
+        // Show error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error deleting auction: $e")),
+        );
+      }
+    }
   }
 
   @override
@@ -69,11 +171,11 @@ class _SellerDashboardState extends State<SellerDashboard> {
           IconButton(
             icon: const Icon(Icons.swap_horiz),
             tooltip: 'Switch to Buyer Mode',
-            onPressed: _switchToBuyer,
+            onPressed: _isLoading ? null : _switchToBuyer,
           ),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: _logout,
+            onPressed: _isLoading ? null : _logout,
           ),
         ],
       ),
@@ -108,45 +210,7 @@ class _SellerDashboardState extends State<SellerDashboard> {
                   subtitle: Text("Current Bid: \$${auction.highestBid}"),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () async {
-                      bool? confirmDelete = await showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text("Delete Auction"),
-                          content: const Text(
-                              "Are you sure you want to delete this auction? This action cannot be undone."),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text("Cancel"),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text("Delete",
-                                  style: TextStyle(color: Colors.red)),
-                            ),
-                          ],
-                        ),
-                      );
-
-                      if (confirmDelete == true) {
-                        if (!mounted) return;
-
-                        // ✅ Show dialog before async operation starts
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (context) => const Center(child: CircularProgressIndicator()),
-                        );
-
-                        // Perform the deletion process asynchronously
-                        await auctionService.deleteAuction(auction.id);
-
-                        // ✅ Ensure the widget is still mounted before closing the dialog
-                        if (!mounted) return;
-                        Navigator.pop(context); // Close loading dialog
-                      }
-                    },
+                    onPressed: () => _deleteAuction(auction),
                   ),
                 ),
               );
@@ -157,5 +221,4 @@ class _SellerDashboardState extends State<SellerDashboard> {
     );
   }
 }
-
 
