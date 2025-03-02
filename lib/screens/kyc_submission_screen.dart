@@ -1,3 +1,4 @@
+// lib/screens/kyc_submission_screen.dart - Fixed issues
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -28,8 +29,9 @@ class KycSubmissionScreenState extends State<KycSubmissionScreen> {
   String _kycStatus = 'unknown';
   bool _isActive = false;
   
-  List<File> _selectedDocuments = [];
-  List<String> _documentNames = [];
+  // Fixed: Made these final since they're just collections
+  final List<File> _selectedDocuments = [];
+  final List<String> _documentNames = [];
 
   @override
   void initState() {
@@ -69,18 +71,18 @@ class KycSubmissionScreenState extends State<KycSubmissionScreen> {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
       
-      final response = await _supabase
+      final sellerData = await _supabase
           .from('sellers')
           .select()
-          .eq('id', user.id)
+          .eq('user_id', user.id)
           .maybeSingle();
       
-      if (response != null && mounted) {
+      if (sellerData != null && mounted) {
         setState(() {
-          _businessNameController.text = response['business_name'] ?? '';
-          _registrationNumberController.text = response['business_registration_number'] ?? '';
-          _taxIdController.text = response['tax_id'] ?? '';
-          _addressController.text = response['address'] ?? '';
+          _businessNameController.text = sellerData['business_name'] ?? '';
+          _registrationNumberController.text = sellerData['business_registration_number'] ?? '';
+          _taxIdController.text = sellerData['tax_id'] ?? '';
+          _addressController.text = sellerData['address'] ?? '';
         });
       }
     } catch (e) {
@@ -119,7 +121,7 @@ class KycSubmissionScreenState extends State<KycSubmissionScreen> {
         final file = _selectedDocuments[i];
         final fileName = '${DateTime.now().millisecondsSinceEpoch}_${_documentNames[i]}';
         
-        final response = await _supabase.storage.from('kyc_documents').upload(fileName, file);
+        await _supabase.storage.from('kyc_documents').upload(fileName, file);
         final publicUrl = _supabase.storage.from('kyc_documents').getPublicUrl(fileName);
         
         documentUrls.add(publicUrl);
@@ -374,7 +376,7 @@ class KycSubmissionScreenState extends State<KycSubmissionScreen> {
                     },
                   ),
                 );
-              }).toList(),
+              }),
               
               // Upload Button
               Center(

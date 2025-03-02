@@ -8,6 +8,7 @@ version: 1.0.0+1
 environment:
   sdk: '>=3.6.2 <4.0.0'
 
+# Add this to your dependencies section in pubspec.yaml:
 dependencies:
   flutter:
     sdk: flutter
@@ -15,22 +16,17 @@ dependencies:
   flutter_secure_storage: ^8.0.0
   jwt_decoder: ^2.0.1
   image_picker: ^1.0.7
-
-  # Authentication
-  google_sign_in: ^6.2.1  # Google Auth (Disabled for now)
-  flutter_facebook_auth: ^6.0.2  # Facebook Auth (Disabled for now)
-
-  # UI & Icons
+  google_sign_in: ^6.2.1
+  flutter_facebook_auth: ^6.0.2
   cupertino_icons: ^1.0.8
-  pinput: ^4.0.0  # OTP Input UI for phone authentication
-
-  # State Management
-  provider: 6.0.5  # Manage user authentication state
-
-  # Local Storage for Session Management
-  shared_preferences: ^2.2.2  # Store login state
+  pinput: ^4.0.0
+  provider: 6.0.5
+  shared_preferences: ^2.2.2
   uuid: ^4.5.1
-  supabase_flutter: ^2.8.3  # ✅ Supabase is now your backend!
+  supabase_flutter: ^2.8.3
+  intl: ^0.18.1
+  # Authentication
+  # UI & Icons
 
 dev_dependencies:
   flutter_test:

@@ -1,3 +1,4 @@
+// lib/services/role_service.dart
 import 'dart:developer';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -7,74 +8,83 @@ class RoleService {
   final _storage = const FlutterSecureStorage();
   final SupabaseClient supabase = Supabase.instance.client;
 
-  /// Get the user's active role (which profile they're currently using)
-  Future<String> getActiveRole() async {
-    try {
-      // First check if we have a stored active role
-      String? activeRole = await _storage.read(key: 'activeRole');
-      
-      // Default to buyer if no stored role
-      return activeRole ?? 'buyer';
-    } catch (e) {
-      log("❌ Error getting active role: $e");
-      return 'buyer'; // Default to buyer on error
-    }
-  }
-
-  /// Get the user's buyer profile
-  Future<Map<String, dynamic>?> getBuyerProfile() async {
+  /// Check the status of a user's KYC verification
+  Future<Map<String, dynamic>> checkKycStatus() async {
     try {
       final user = supabase.auth.currentUser;
       if (user == null) {
         log("❌ No authenticated user found");
-        return null;
-      }
-      
-      final response = await supabase
-          .from('buyers')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle();
-      
-      return response;
-    } catch (e) {
-      log("❌ Error getting buyer profile: $e");
-      return null;
-    }
-  }
-
-  /// Get the user's seller profile including KYC status
-  Future<Map<String, dynamic>?> getSellerProfile() async {
-    try {
-      final user = supabase.auth.currentUser;
-      if (user == null) {
-        log("❌ No authenticated user found");
-        return null;
+        return {'status': 'unknown', 'is_active': false};
       }
       
       final response = await supabase
           .from('sellers')
-          .select('*')
+          .select('kyc_status, is_active')
           .eq('user_id', user.id)
           .maybeSingle();
       
-      return response;
+      if (response == null) {
+        log("⚠️ No seller profile found for user");
+        return {'status': 'unknown', 'is_active': false};
+      }
+      
+      return {
+        'status': response['kyc_status'] ?? 'unknown',
+        'is_active': response['is_active'] ?? false
+      };
     } catch (e) {
-      log("❌ Error getting seller profile: $e");
-      return null;
+      log("❌ Error checking KYC status: $e");
+      return {'status': 'error', 'is_active': false};
     }
   }
 
-  /// Switch between buyer and seller profiles
-  Future<bool> switchRole(String targetRole) async {
+  /// Request verification to become a seller
+  Future<bool> requestSellerRole(Map<String, dynamic> sellerData, List<String> documentUrls) async {
     try {
-      // Validate the target role
-      if (targetRole != 'buyer' && targetRole != 'seller') {
-        log("❌ Invalid role: $targetRole. Can only switch to 'buyer' or 'seller'");
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        log("❌ No authenticated user found");
         return false;
       }
       
-      log("⏳ Attempting to switch to $targetRole role");
+      // First get the seller record ID
+      final sellerRecord = await supabase
+          .from('sellers')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+      
+      if (sellerRecord == null) {
+        log("❌ No seller profile found for user");
+        return false;
+      }
+      
+      // Update the seller's information with the KYC data
+      await supabase.from('sellers').update({
+        'business_name': sellerData['business_name'],
+        'business_id': sellerData['business_registration_number'],
+        'tax_id': sellerData['tax_id'],
+        'address': sellerData['address'],
+        'document_urls': documentUrls,
+        'kyc_status': 'pending',
+        'updated_at': DateTime.now().toIso8601String()
+      }).eq('id', sellerRecord['id']);
+      
+      log("✅ Seller verification request submitted successfully");
+      return true;
+    } catch (e) {
+      log("❌ Error requesting seller verification: $e");
+      return false;
+    }
+  }
+
+  /// Switch the user's active role between buyer and seller
+  Future<bool> switchRole(String newRole) async {
+    try {
+      if (newRole != 'buyer' && newRole != 'seller') {
+        log("❌ Invalid role: $newRole");
+        return false;
+      }
       
       final user = supabase.auth.currentUser;
       if (user == null) {
@@ -82,26 +92,19 @@ class RoleService {
         return false;
       }
       
-      // If switching to seller, check if it's verified and active
-      if (targetRole == 'seller') {
-        final sellerProfile = await getSellerProfile();
-        if (sellerProfile == null) {
-          log("❌ No seller profile found");
-          return false;
-        }
-        
-        bool isActive = sellerProfile['is_active'] ?? false;
-        String kycStatus = sellerProfile['kyc_status'] ?? 'not_submitted';
-        
-        if (!isActive || kycStatus != 'verified') {
-          log("❌ Seller profile is not verified or not active");
+      // If switching to seller, verify KYC status
+      if (newRole == 'seller') {
+        final kycStatus = await checkKycStatus();
+        if (kycStatus['status'] != 'verified' || !kycStatus['is_active']) {
+          log("❌ Seller verification required or not active");
           return false;
         }
       }
       
-      // Store the new active role
-      await _storage.write(key: 'activeRole', value: targetRole);
-      log("✅ Successfully switched to $targetRole role");
+      // Save the active role
+      await _storage.write(key: 'activeRole', value: newRole);
+      
+      log("✅ Switched to $newRole role");
       return true;
     } catch (e) {
       log("❌ Error switching role: $e");
@@ -109,83 +112,47 @@ class RoleService {
     }
   }
 
-  /// Submit or update KYC information for seller verification
-  Future<bool> submitSellerKYC(Map<String, dynamic> sellerData, List<String> documentUrls) async {
+  /// Get the user's available roles and their status
+  Future<Map<String, dynamic>> getUserRoles() async {
     try {
       final user = supabase.auth.currentUser;
       if (user == null) {
         log("❌ No authenticated user found");
-        return false;
+        return {'buyer': true, 'seller': false};
       }
       
-      // Get the seller profile ID
-      final sellerProfile = await getSellerProfile();
-      if (sellerProfile == null) {
-        log("❌ No seller profile found");
-        return false;
+      // Get buyer status - should always be active
+      final buyerProfile = await supabase
+          .from('buyers')
+          .select('is_active')
+          .eq('user_id', user.id)
+          .maybeSingle();
+      
+      bool buyerActive = buyerProfile?['is_active'] ?? true;
+      
+      // Get seller status - requires KYC verification
+      final sellerProfile = await supabase
+          .from('sellers')
+          .select('is_active, kyc_status')
+          .eq('user_id', user.id)
+          .maybeSingle();
+      
+      bool sellerActive = false;
+      String sellerStatus = 'not_submitted';
+      
+      if (sellerProfile != null) {
+        sellerActive = sellerProfile['is_active'] ?? false;
+        sellerStatus = sellerProfile['kyc_status'] ?? 'not_submitted';
       }
       
-      // Update the seller profile with KYC data
-      await supabase.from('sellers').update({
-        'business_name': sellerData['business_name'],
-        'business_id': sellerData['business_id'],
-        'address': sellerData['address'],
-        'tax_id': sellerData['tax_id'],
-        'document_urls': documentUrls,
-        'kyc_status': 'pending', // Set to pending for admin review
-        'updated_at': DateTime.now().toIso8601String()
-      }).eq('id', sellerProfile['id']);
-      
-      log("✅ Seller KYC information submitted successfully");
-      return true;
+      return {
+        'buyer': buyerActive,
+        'seller': sellerActive,
+        'seller_status': sellerStatus
+      };
     } catch (e) {
-      log("❌ Error submitting seller KYC: $e");
-      return false;
-    }
-  }
-  
-  /// Create both buyer and seller profiles for an existing user
-  /// Only use this if the automatic trigger didn't work
-  Future<bool> createUserProfiles() async {
-    try {
-      final user = supabase.auth.currentUser;
-      if (user == null) {
-        log("❌ No authenticated user found");
-        return false;
-      }
-      
-      // Check if profiles already exist
-      final buyerProfile = await getBuyerProfile();
-      final sellerProfile = await getSellerProfile();
-      
-      // Create buyer profile if it doesn't exist
-      if (buyerProfile == null) {
-        await supabase.from('buyers').insert({
-          'id': supabase.auth.currentUser!.id,
-          'user_id': user.id,
-          'is_active': true,
-          'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String()
-        });
-      }
-      
-      // Create seller profile if it doesn't exist
-      if (sellerProfile == null) {
-        await supabase.from('sellers').insert({
-          'id': supabase.auth.currentUser!.id,
-          'user_id': user.id,
-          'kyc_status': 'not_submitted',
-          'is_active': false,
-          'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String()
-        });
-      }
-      
-      log("✅ User profiles created successfully");
-      return true;
-    } catch (e) {
-      log("❌ Error creating user profiles: $e");
-      return false;
+      log("❌ Error getting user roles: $e");
+      return {'buyer': true, 'seller': false, 'seller_status': 'error'};
     }
   }
 }
