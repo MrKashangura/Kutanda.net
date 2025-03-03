@@ -1,6 +1,5 @@
 // lib/screens/csr_dispute_resolution_screen.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/support_ticket_model.dart';
 import '../services/support_ticket_service.dart';
@@ -34,25 +33,14 @@ class CSRDisputeResolutionScreen extends StatefulWidget {
 
 class _CSRDisputeResolutionScreenState extends State<CSRDisputeResolutionScreen> {
   final SupportTicketService _ticketService = SupportTicketService();
-  final SupabaseClient _supabase = Supabase.instance.client;
+  // Removed unused _currentCsrId field
   bool _isLoading = true;
   List<DisputeTicket> _disputes = [];
-  String? _currentCsrId;
   
   @override
   void initState() {
     super.initState();
-    _getCurrentCsrId();
     _loadDisputes();
-  }
-  
-  Future<void> _getCurrentCsrId() async {
-    final user = _supabase.auth.currentUser;
-    if (user != null) {
-      setState(() {
-        _currentCsrId = user.id;
-      });
-    }
   }
   
   Future<void> _loadDisputes() async {
@@ -238,7 +226,8 @@ class _CSRDisputeResolutionScreenState extends State<CSRDisputeResolutionScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        // Fixed deprecated withOpacity
+        color: color.withAlpha(51),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color),
       ),
@@ -258,7 +247,7 @@ class _CSRDisputeResolutionScreenState extends State<CSRDisputeResolutionScreen>
     
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Resolve Dispute'),
           content: SingleChildScrollView(
@@ -298,28 +287,37 @@ class _CSRDisputeResolutionScreenState extends State<CSRDisputeResolutionScreen>
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () async {
                 if (resolutionController.text.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  // Fixed: Use dialogContext instead of context
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
                     const SnackBar(content: Text('Please enter a resolution decision')),
                   );
                   return;
                 }
                 
-                Navigator.pop(context);
+                // Store resolution and notes before popping the dialog
+                final resolution = resolutionController.text;
+                final notes = notesController.text;
+                
+                // Close the dialog
+                Navigator.pop(dialogContext);
+                
+                // Show loading state
                 setState(() => _isLoading = true);
                 
                 try {
                   await _ticketService.resolveDispute(
                     dispute.id,
-                    resolutionController.text,
-                    notesController.text,
+                    resolution,
+                    notes,
                   );
                   
+                  // Reload the disputes list
                   await _loadDisputes();
                   
                   if (mounted) {

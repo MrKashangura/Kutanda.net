@@ -7,7 +7,6 @@ import '../screens/buyer_dashboard.dart';
 import '../screens/create_auction_screen.dart';
 import '../screens/kyc_submission_screen.dart';
 import '../screens/login_screen.dart';
-import '../services/api_service.dart';
 import '../services/auction_service.dart';
 import '../services/role_service.dart';
 import '../services/session_service.dart';
@@ -22,7 +21,6 @@ class SellerDashboard extends StatefulWidget {
 
 class _SellerDashboardState extends State<SellerDashboard> {
   final AuctionService auctionService = AuctionService();
-  final ApiService _apiService = ApiService();
   final RoleService _roleService = RoleService();
   final SupabaseClient supabase = Supabase.instance.client;
   
@@ -193,21 +191,6 @@ class _SellerDashboardState extends State<SellerDashboard> {
     }
   }
 
-  void _navigateToCreateAuction() {
-    if (!_isVerified) {
-      // If not verified, show verification screen
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const KycSubmissionScreen()),
-      );
-    } else {
-      // If verified, go to auction creation
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const CreateAuctionScreen()),
-      );
-    }
-  }
 
   Widget _buildVerificationStatus() {
     IconData statusIcon;

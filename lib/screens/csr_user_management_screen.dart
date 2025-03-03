@@ -1,6 +1,5 @@
 // lib/screens/csr_user_management_screen.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/user_management_service.dart';
 import '../widgets/csr_drawer.dart';
@@ -14,7 +13,7 @@ class CSRUserManagementScreen extends StatefulWidget {
 
 class _CSRUserManagementScreenState extends State<CSRUserManagementScreen> {
   final UserManagementService _userService = UserManagementService();
-  final SupabaseClient _supabase = Supabase.instance.client;
+  // Removed unused _supabase field
   
   bool _isLoading = true;
   List<Map<String, dynamic>> _users = [];
@@ -202,7 +201,8 @@ class _CSRUserManagementScreenState extends State<CSRUserManagementScreen> {
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: Colors.blue.withOpacity(0.2),
+                                        // Fixed deprecated withOpacity use
+                                        color: Colors.blue.withAlpha(51),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
@@ -215,7 +215,8 @@ class _CSRUserManagementScreenState extends State<CSRUserManagementScreen> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                         decoration: BoxDecoration(
-                                          color: Colors.red.withOpacity(0.2),
+                                          // Fixed deprecated withOpacity use
+                                          color: Colors.red.withAlpha(51),
                                           borderRadius: BorderRadius.circular(4),
                                         ),
                                         child: Text(

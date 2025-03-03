@@ -111,11 +111,9 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             .eq('id', user.id)
             .single();
         
-        if (userData != null) {
-          setState(() {
-            _currentCsrName = userData['display_name'] ?? 'CSR';
-          });
-        }
+        setState(() {
+          _currentCsrName = userData['display_name'] ?? 'CSR';
+        });
       }
     } catch (e) {
       if (mounted) {
