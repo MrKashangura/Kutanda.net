@@ -133,12 +133,12 @@ class _CSRDashboardState extends State<CSRDashboard> with SingleTickerProviderSt
           controller: _tabController,
           isScrollable: true,
           tabs: [
-            Tab(text: "Open Tickets (${_openCount})"),
-            Tab(text: "In Progress (${_inProgressCount})"),
-            Tab(text: "Pending User (${_pendingUserCount})"),
-            Tab(text: "Content Reports (${_reportedContentCount})"),
-            Tab(text: "Disputes (${_disputeCount})"),
-            Tab(text: "Pending Auctions (${_pendingAuctionsCount})"),
+            Tab(text: "Open Tickets ($_openCount)"),
+            Tab(text: "In Progress ($_inProgressCount)"),
+            Tab(text: "Pending User ($_pendingUserCount)"),
+            Tab(text: "Content Reports ($_reportedContentCount)"),
+            Tab(text: "Disputes ($_disputeCount)"),
+            Tab(text: "Pending Auctions ($_pendingAuctionsCount)"),
           ],
         ),
         actions: [

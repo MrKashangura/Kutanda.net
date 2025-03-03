@@ -61,9 +61,9 @@ class _CSRProfileScreenState extends State<CSRProfileScreen> {
           .eq('moderator_id', user.id)
           .count();
           
-      final resolvedCount = resolvedTickets.count ?? 0;
-      final totalCount = totalTickets.count ?? 0;
-      final disputeCount = disputes.count ?? 0;
+      final resolvedCount = resolvedTickets.count;
+      final totalCount = totalTickets.count;
+      final disputeCount = disputes.count;
           
       final csrStats = {
         'resolved_tickets': resolvedCount,
