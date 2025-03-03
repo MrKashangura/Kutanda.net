@@ -150,11 +150,11 @@ class _CSRAnalyticsScreenState extends State<CSRAnalyticsScreen> {
                 _loadAnalyticsData();
               }
             },
-            items: [
-              const DropdownMenuItem(value: '7', child: Text('Last 7 Days')),
-              const DropdownMenuItem(value: '30', child: Text('Last 30 Days')),
-              const DropdownMenuItem(value: '90', child: Text('Last 90 Days')),
-              const DropdownMenuItem(value: '365', child: Text('Last Year')),
+            items: const [
+              DropdownMenuItem(value: '7', child: Text('Last 7 Days')),
+              DropdownMenuItem(value: '30', child: Text('Last 30 Days')),
+              DropdownMenuItem(value: '90', child: Text('Last 90 Days')),
+              DropdownMenuItem(value: '365', child: Text('Last Year')),
             ],
           ),
           IconButton(
@@ -293,7 +293,12 @@ class _CSRAnalyticsScreenState extends State<CSRAnalyticsScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
+            color: Color.fromRGBO(
+              Colors.grey.red,
+              Colors.grey.green,
+              Colors.grey.blue,
+              0.2
+            ),
             spreadRadius: 1,
             blurRadius: 5,
             offset: const Offset(0, 2),
@@ -421,44 +426,44 @@ class _CSRAnalyticsScreenState extends State<CSRAnalyticsScreen> {
   }
   
   Map<String, dynamic> _calculateTeamAverages() {
-    if (_allCsrPerformance.isEmpty) {
-      return {
-        'total_tickets': 0,
-        'resolution_rate': 0.0,
-        'average_resolution_time': null,
-      };
-    }
-    
-    int totalTickets = 0;
-    int resolvedTickets = 0;
-    List<Duration> resolutionTimes = [];
-    
-    for (final csr in _allCsrPerformance) {
-      totalTickets += csr['total_tickets'] ?? 0;
-      resolvedTickets += csr['resolved_tickets'] ?? 0;
-      
-      if (csr['average_resolution_time'] != null) {
-        resolutionTimes.add(csr['average_resolution_time'] as Duration);
-      }
-    }
-    
-    double resolutionRate = totalTickets > 0 ? resolvedTickets / totalTickets : 0;
-    
-    Duration? averageResolutionTime;
-    if (resolutionTimes.isNotEmpty) {
-      final totalMilliseconds = resolutionTimes
-          .map((d) => d.inMilliseconds)
-          .reduce((a, b) => a + b);
-      averageResolutionTime = Duration(
-          milliseconds: totalMilliseconds ~/ resolutionTimes.length);
-    }
-    
+  if (_allCsrPerformance.isEmpty) {
     return {
-      'total_tickets': totalTickets,
-      'resolution_rate': resolutionRate,
-      'average_resolution_time': averageResolutionTime,
+      'total_tickets': 0,
+      'resolution_rate': 0.0,
+      'average_resolution_time': null,
     };
   }
+  
+  int totalTickets = 0;
+  int resolvedTickets = 0;
+  List<Duration> resolutionTimes = [];
+  
+  for (final csr in _allCsrPerformance) {
+    totalTickets += (csr['total_tickets'] as num?)?.toInt() ?? 0;
+    resolvedTickets += (csr['resolved_tickets'] as num?)?.toInt() ?? 0;
+    
+    if (csr['average_resolution_time'] != null) {
+      resolutionTimes.add(csr['average_resolution_time'] as Duration);
+    }
+  }
+  
+  double resolutionRate = totalTickets > 0 ? resolvedTickets / totalTickets : 0;
+  
+  Duration? averageResolutionTime;
+  if (resolutionTimes.isNotEmpty) {
+    final totalMilliseconds = resolutionTimes
+        .map((d) => d.inMilliseconds)
+        .reduce((a, b) => a + b);
+    averageResolutionTime = Duration(
+        milliseconds: totalMilliseconds ~/ resolutionTimes.length);
+  }
+  
+  return {
+    'total_tickets': totalTickets,
+    'resolution_rate': resolutionRate,
+    'average_resolution_time': averageResolutionTime,
+  };
+}
   
   Widget _buildCommonIssuesTable() {
     if (_commonIssueTypes.isEmpty) {
@@ -553,9 +558,236 @@ class _CSRAnalyticsScreenState extends State<CSRAnalyticsScreen> {
                   'Average Satisfaction Rating',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
-                Row(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
                       averageRating.toStringAsFixed(1),
-                      style: const TextStyle(
-                        fontSize: 24
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                    Text(
+                      'Based on ${ratingCounts.values.fold<int>(0, (sum, count) => sum + (count as int))} ratings',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 20),
+            
+            // Rating distribution
+            ...['5', '4', '3', '2', '1'].map((rating) {
+              final count = ratingCounts[rating] ?? 0;
+              final percentage = totalRatings > 0 ? (count / totalRatings) * 100 : 0.0;
+              
+              // Select color based on rating
+              Color ratingColor;
+              switch (rating) {
+                case '5':
+                case '4':
+                  ratingColor = Colors.green;
+                  break;
+                case '3':
+                  ratingColor = Colors.amber;
+                  break;
+                default:
+                  ratingColor = Colors.red;
+              }
+              
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 30,
+                      child: Row(
+                        children: [
+                          Text(
+                            rating,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const Icon(Icons.star, size: 14, color: Colors.amber),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          // Background bar
+                          Container(
+                            height: 16,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          // Value bar
+                          FractionallySizedBox(
+                            widthFactor: percentage / 100,
+                            child: Container(
+                              height: 16,
+                              decoration: BoxDecoration(
+                                color: ratingColor,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 80,
+                      child: Text(
+                        '${count.toString().padLeft(2)} (${percentage.toStringAsFixed(1)}%)',
+                        textAlign: TextAlign.end,
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+            
+            const SizedBox(height: 20),
+            
+            // Legend row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(width: 12, height: 12, color: Colors.green),
+                const SizedBox(width: 4),
+                const Text('Good (4-5)'),
+                const SizedBox(width: 16),
+                Container(width: 12, height: 12, color: Colors.amber),
+                const SizedBox(width: 4),
+                const Text('Average (3)'),
+                const SizedBox(width: 16),
+                Container(width: 12, height: 12, color: Colors.red),
+                const SizedBox(width: 4),
+                const Text('Poor (1-2)'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildTicketVolumeByHourChart() {
+    if (_ticketVolumeByHour.isEmpty) {
+      return const Center(
+        child: Text('No ticket volume data available'),
+      );
+    }
+    
+    // Find the max value for scaling the bars
+    int maxVolume = 0;
+    _ticketVolumeByHour.values.forEach((value) {
+      if (value > maxVolume) maxVolume = value;
+    });
+    
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Hourly Ticket Distribution',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // Y-axis labels
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('$maxVolume'),
+                      Text('${(maxVolume / 2).round()}'),
+                      const Text('0'),
+                    ],
+                  ),
+                  
+                  const SizedBox(width: 8),
+                  
+                  // Bars
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: List.generate(24, (hour) {
+                        final count = _ticketVolumeByHour[hour] ?? 0;
+                        final double height = maxVolume > 0 
+                            ? (count / maxVolume) * 160
+                            : 0;
+                            
+                        // Determine time of day for color coding
+                        Color barColor;
+                        if (hour >= 9 && hour < 17) {
+                          barColor = Colors.blue; // Business hours
+                        } else if ((hour >= 17 && hour < 22) || (hour >= 6 && hour < 9)) {
+                          barColor = Colors.orange; // Evening/Morning
+                        } else {
+                          barColor = Colors.purple; // Night
+                        }
+                        
+                        return Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            // Bar with count on hover
+                            Tooltip(
+                              message: 'Hour $hour:00: $count tickets',
+                              child: Container(
+                                width: 10,
+                                height: height > 0 ? height : 1,
+                                decoration: BoxDecoration(
+                                  color: barColor,
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(2),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            // X-axis label
+                            Text(hour % 3 == 0 ? '${hour.toString().padLeft(2, '0')}:00' : ''),
+                          ],
+                        );
+                      }),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Legend
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(width: 12, height: 12, color: Colors.blue),
+                const SizedBox(width: 4),
+                const Text('Business Hours (9-17)'),
+                const SizedBox(width: 16),
+                Container(width: 12, height: 12, color: Colors.orange),
+                const SizedBox(width: 4),
+                const Text('Morning/Evening (6-9, 17-22)'),
+                const SizedBox(width: 16),
+                Container(width: 12, height: 12, color: Colors.purple),
+                const SizedBox(width: 4),
+                const Text('Night (22-6)'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -9,45 +9,43 @@ class FacebookAuthService {
   final SupabaseClient supabase = Supabase.instance.client;
 
   /// Sign in with Facebook and authenticate with Supabase
-  Future<AuthResponse?> signInWithFacebook() async {
-    try {
-      // Start the Facebook login process
-      final LoginResult result = await FacebookAuth.instance.login(
-        permissions: ['email', 'public_profile'],
-      );
+  // Properly handle the Facebook authentication with Supabase
+Future<AuthResponse?> signInWithFacebook() async {
+  try {
+    // Start the Facebook login process
+    final LoginResult result = await FacebookAuth.instance.login(
+      permissions: ['email', 'public_profile'],
+    );
 
-      if (result.status == LoginStatus.cancelled) {
-        log('Facebook login was canceled by the user');
-        return null;
-      }
-
-      if (result.status == LoginStatus.failed) {
-        throw Exception('Facebook login failed: ${result.message}');
-      }
-
-      // Get access token
-      final String? accessToken = result.accessToken?.token;
-      if (accessToken == null) {
-        throw Exception('No access token found');
-      }
-
-      // Get user data from Facebook
-      final userData = await FacebookAuth.instance.getUserData();
-      log('Facebook user data: $userData');
-
-      // Sign in to Supabase with Facebook OAuth
-      final AuthResponse response = await supabase.auth.signInWithOAuth(
-        OAuthProvider.facebook,
-        redirectTo: 'io.supabase.kutanda://login-callback/',
-      );
-
-      log('✅ Facebook Auth Successful');
-      return response;
-    } catch (e) {
-      log('❌ Facebook Auth Error: $e');
-      rethrow;
+    if (result.status == LoginStatus.cancelled) {
+      log('Facebook login was canceled by the user');
+      return null;
     }
+
+    if (result.status == LoginStatus.failed) {
+      throw Exception('Facebook login failed: ${result.message}');
+    }
+
+    // Get access token
+    final String? accessToken = result.accessToken?.token;
+    if (accessToken == null) {
+      throw Exception('No access token found');
+    }
+
+    // Sign in to Supabase with Facebook OAuth provider
+    final response = await supabase.auth.signInWithIdToken(
+      provider: OAuthProvider.facebook,
+      idToken: accessToken, // Use the access token as the ID token
+      accessToken: accessToken,
+    );
+
+    log('✅ Facebook Auth Successful');
+    return response;
+  } catch (e) {
+    log('❌ Facebook Auth Error: $e');
+    rethrow;
   }
+}
 
   /// Sign out from Facebook
   Future<void> signOutFacebook() async {

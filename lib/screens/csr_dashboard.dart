@@ -57,9 +57,7 @@ class _CSRDashboardState extends State<CSRDashboard> with SingleTickerProviderSt
             .eq('id', user.id)
             .single();
         
-        if (userData != null) {
-          _csrName = userData['display_name'] ?? 'CSR';
-        }
+        _csrName = userData['display_name'] ?? 'CSR';
       }
       
       // Get ticket counts
@@ -130,7 +128,7 @@ class _CSRDashboardState extends State<CSRDashboard> with SingleTickerProviderSt
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Customer Support Dashboard"),
+        title: Text("$_csrName's Dashboard"),
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,

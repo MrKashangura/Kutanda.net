@@ -180,3 +180,8 @@ extension BuildContextExtensions on BuildContext {
   EdgeInsets get padding => MediaQuery.of(this).padding;
   bool get isKeyboardOpen => MediaQuery.of(this).viewInsets.bottom > 0;
 }
+extension StringExtension on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${substring(1)}";
+  }
+}

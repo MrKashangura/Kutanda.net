@@ -130,8 +130,8 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
     setState(() => _isLoading = true);
     
     try {
-      // Get ticket data
-      final ticket = await _ticketService.getTicket(widget.ticketId);
+        // Get ticket data
+      var ticket = await _ticketService.getTicket(widget.ticketId);
       
       if (ticket == null) {
         if (mounted) {
@@ -149,10 +149,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
       // Get assigned CSR data if available
       Map<String, dynamic>? csrData;
       if (ticket.assignedCsrId != null) {
+        final String csrId = ticket.assignedCsrId!;
         final csrResponse = await _supabase
             .from('users')
             .select('display_name, email')
-            .eq('id', ticket.assignedCsrId)
+            .eq('id', csrId)
             .maybeSingle();
         
         if (csrResponse != null) {
