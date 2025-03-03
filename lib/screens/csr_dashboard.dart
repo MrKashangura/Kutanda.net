@@ -187,17 +187,68 @@ class _CSRDashboardState extends State<CSRDashboard> with SingleTickerProviderSt
                 
                 // Content Reports tab
                 Center(
-                  child: Text("Content Reports tab content will go here"),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.content_paste, size: 64, color: Colors.grey),
+                      const SizedBox(height: 16),
+                      Text(
+                        'You have $_reportedContentCount content reports to review',
+                        style: const TextStyle(fontSize: 18),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/content_moderation');
+                        },
+                        child: const Text('Go to Content Moderation'),
+                      ),
+                    ],
+                  ),
                 ),
                 
                 // Disputes tab
                 Center(
-                  child: Text("Disputes tab content will go here"),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.gavel, size: 64, color: Colors.grey),
+                      const SizedBox(height: 16),
+                      Text(
+                        'You have $_disputeCount disputes to resolve',
+                        style: const TextStyle(fontSize: 18),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/dispute_resolution');
+                        },
+                        child: const Text('Go to Dispute Resolution'),
+                      ),
+                    ],
+                  ),
                 ),
                 
                 // Pending Auctions tab
                 Center(
-                  child: Text("Pending Auctions tab content will go here"),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.gavel, size: 64, color: Colors.grey),
+                      const SizedBox(height: 16),
+                      Text(
+                        'You have $_pendingAuctionsCount auctions to review',
+                        style: const TextStyle(fontSize: 18),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/content_moderation');
+                        },
+                        child: const Text('Go to Auction Moderation'),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

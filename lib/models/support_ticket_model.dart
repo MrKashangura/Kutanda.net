@@ -56,7 +56,7 @@ class SupportTicket {
     this.priority = TicketPriority.medium,
     required this.type,
     this.assignedCsrId,
-    this.lastUpdated,
+    DateTime? lastUpdated,  // Removed 'this.' to fix the issue
     List<TicketMessage>? messages,
     this.metadata,
   }) : 

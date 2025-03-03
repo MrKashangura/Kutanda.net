@@ -8,6 +8,40 @@ class RoleService {
   final _storage = const FlutterSecureStorage();
   final SupabaseClient supabase = Supabase.instance.client;
 
+  /// Get the user's active role
+  Future<String?> getActiveRole() async {
+    try {
+      // Get stored active role
+      final activeRole = await _storage.read(key: 'activeRole');
+      
+      // If no active role is stored, use the default role based on user type
+      if (activeRole == null) {
+        final user = supabase.auth.currentUser;
+        if (user != null) {
+          final userResponse = await supabase
+              .from('users')
+              .select('role')
+              .eq('id', user.id)
+              .maybeSingle();
+              
+          if (userResponse != null) {
+            final defaultRole = userResponse['role'];
+            await _storage.write(key: 'activeRole', value: defaultRole);
+            return defaultRole;
+          }
+        }
+        
+        // Default to 'buyer' if no role found
+        return 'buyer';
+      }
+      
+      return activeRole;
+    } catch (e) {
+      log('❌ Error getting active role: $e');
+      return 'buyer'; // Default fallback
+    }
+  }
+
   /// Check the status of a user's KYC verification
   Future<Map<String, dynamic>> checkKycStatus() async {
     try {
