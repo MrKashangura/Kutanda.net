@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 
 import 'screens/admin_dashboard.dart';
-import 'screens/auction_screen.dart';
+import 'screens/auction_screen.dart'; // Import EnhancedAuctionScreen
 import 'screens/buyer_dashboard.dart';
 import 'screens/create_auction_screen.dart';
 import 'screens/csr_dashboard.dart';
@@ -24,6 +24,6 @@ final Map<String, WidgetBuilder> appRoutes = {
   '/csr_dashboard': (context) => const CSRDashboard(),
   '/role_switch': (context) => const RoleSwitchScreen(),
   '/create_auction': (context) => const CreateAuctionScreen(),
-  '/explore': (context) => const AuctionScreen(),
+  '/explore': (context) => const EnhancedAuctionScreen(), // Change to your actual class name
   '/kyc_submission': (context) => const KycSubmissionScreen(),
 };
