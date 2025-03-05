@@ -10,6 +10,7 @@ class Auction {
   DateTime endTime; // ✅ Use DateTime for Supabase compatibility
   List<String> imageUrls;
   bool isActive;
+  bool endingNotified; // Tracks if ending notification was sent
 
   Auction({
     required this.id,
@@ -23,6 +24,7 @@ class Auction {
     required this.endTime,
     required this.imageUrls,
     required this.isActive,
+    this.endingNotified = false,
   }) : highestBid = highestBid ?? startingPrice; // ✅ Default highestBid to startingPrice
 
   /// **Convert Auction to Supabase Map**
@@ -39,6 +41,7 @@ class Auction {
       'end_time': endTime.toIso8601String(), // ✅ Convert DateTime to ISO string
       'image_urls': imageUrls,
       'is_active': isActive,
+      'ending_notified': endingNotified,
     };
   }
 
@@ -56,6 +59,7 @@ class Auction {
       endTime: DateTime.parse(map['end_time']), // ✅ Convert from ISO 8601 string
       imageUrls: List<String>.from(map['image_urls']),
       isActive: map['is_active'],
+      endingNotified: map['ending_notified'] ?? false,
     );
   }
 }

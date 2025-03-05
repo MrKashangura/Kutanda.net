@@ -25,6 +25,8 @@ dependencies:
   uuid: ^4.5.1
   supabase_flutter: ^2.8.3
   intl: ^0.18.1
+  flutter_local_notifications: ^13.0.0
+  onesignal_flutter: ^5.0.4
   # Authentication
   # UI & Icons
 
