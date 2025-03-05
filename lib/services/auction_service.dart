@@ -4,10 +4,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/auction_model.dart';
 import '../services/notification_service.dart';
+import '../services/onesignal_service.dart';
 
 final supabase = Supabase.instance.client;
 
 class AuctionService {
+  final NotificationService _notificationService = NotificationService();
+  final OneSignalService _oneSignalService = OneSignalService();
+
   /// Create an auction
   Future<void> createAuction(Auction auction) async {
     try {
@@ -15,17 +19,17 @@ class AuctionService {
       log("✅ Auction Created: ${auction.id}");
     } catch (e, stackTrace) {
       log("❌ Error Creating Auction: $e", error: e, stackTrace: stackTrace);
+      rethrow;
     }
   }
 
- /// Get all auctions (Real-time updates)
-Stream<List<Auction>> getAllAuctions() {
-  return supabase
-      .from('auctions')
-      .stream(primaryKey: ['id'])
-      .map((snapshot) => snapshot.map((data) => Auction.fromMap(data)).toList()); // ✅ FIXED: Pass only `data`
-}
-
+  /// Get all auctions (Real-time updates)
+  Stream<List<Auction>> getAllAuctions() {
+    return supabase
+        .from('auctions')
+        .stream(primaryKey: ['id'])
+        .map((snapshot) => snapshot.map((data) => Auction.fromMap(data)).toList());
+  }
 
   /// Get active auctions
   Stream<List<Auction>> getActiveAuctions() {
@@ -41,7 +45,7 @@ Stream<List<Auction>> getAllAuctions() {
     return supabase
         .from('auctions')
         .stream(primaryKey: ['id'])
-        .eq('seller_id', sellerId) // ✅ Fixed incorrect field name
+        .eq('seller_id', sellerId)
         .map((snapshot) => snapshot.map((data) => Auction.fromMap(data)).toList());
   }
 
@@ -52,6 +56,7 @@ Stream<List<Auction>> getAllAuctions() {
       log("✅ Auction Updated: ${auction.id}");
     } catch (e, stackTrace) {
       log("❌ Error Updating Auction: $e", error: e, stackTrace: stackTrace);
+      rethrow;
     }
   }
 
@@ -62,101 +67,14 @@ Stream<List<Auction>> getAllAuctions() {
       log("✅ Auction Deleted: $auctionId");
     } catch (e, stackTrace) {
       log("❌ Error Deleting Auction: $e", error: e, stackTrace: stackTrace);
+      rethrow;
     }
   }
 
-  /// Place a bid (Real-time bidding)
-  Future<void> placeBid(String auctionId, double bidAmount, String bidderId) async {
-    try {
-      final auction = await supabase
-          .from('auctions')
-          .select()
-          .eq('id', auctionId)
-          .maybeSingle(); // ✅ Fixed: Use `.maybeSingle()`
-
-      if (auction == null) {
-        throw Exception("Auction does not exist!");
-      }
-
-      String sellerId = auction['seller_id'];
-      if (sellerId == bidderId) {
-        throw Exception("Sellers cannot bid on their own auctions!");
-      }
-
-      double currentHighestBid = (auction['highest_bid'] as num?)?.toDouble() ?? 
-                                  (auction['starting_price'] as num).toDouble();
-
-      if (bidAmount > currentHighestBid) {
-        await supabase.from('bids').insert({
-          'auction_id': auctionId,
-          'bidder_id': bidderId,
-          'amount': bidAmount,
-          'created_at': DateTime.now().toIso8601String(),
-        });
-
-        await supabase.from('auctions').update({
-          'highest_bid': bidAmount,
-          'highest_bidder_id': bidderId,
-        }).eq('id', auctionId);
-
-        log("✅ Bid Placed: $bidAmount by $bidderId");
-      } else {
-        throw Exception("Bid must be higher than the current highest bid!");
-      }
-    } catch (e, stackTrace) {
-      log("❌ Error Placing Bid: $e", error: e, stackTrace: stackTrace);
-    }
-  }
-
-  /// Real-time updates for bids on a specific auction
-  Stream<List<Map<String, dynamic>>> listenToBids(String auctionId) {
-    return supabase
-        .from('bids')
-        .stream(primaryKey: ['id'])
-        .eq('auction_id', auctionId)
-        .map((snapshot) => snapshot.toList());
-  }
-  /// Listen for outbids on auctions the user has bid on
-  Stream<Map<String, dynamic>> listenForOutbids(String userId) {
-    return supabase
-        .from('bids')
-        .stream(primaryKey: ['id'])
-        .eq('previous_highest_bidder_id', userId)
-        .map((snapshot) {
-          if (snapshot.isNotEmpty) {
-            for (final bid in snapshot) {
-              _handleOutbid(bid, userId);
-            }
-          }
-          return {'outbid': snapshot.isNotEmpty};
-        });
-  }
-  /// Handle outbid notification
-  Future<void> _handleOutbid(Map<String, dynamic> bid, String userId) async {
-    try {
-      // Get auction details
-      final auction = await supabase
-          .from('auctions')
-          .select()
-          .eq('id', bid['auction_id'])
-          .maybeSingle();
-      
-      if (auction != null) {
-        // Show notification to the outbid user
-        final notificationService = NotificationService();
-        await notificationService.showOutbidNotification(
-          auction['title'], 
-          (bid['amount'] as num).toDouble()
-        );
-        
-        log("📣 Outbid notification sent to $userId");
-      }
-    } catch (e, stackTrace) {
-      log("❌ Error handling outbid: $e", error: e, stackTrace: stackTrace);
-    }
-  }
-
-  /// Enhanced placeBid method to track previous highest bidder for outbid notifications
+  /// Place a bid on an auction
+  /// 
+  /// This method handles placing a bid, updating the auction with the new highest bid,
+  /// and triggers appropriate notifications.
   Future<void> placeBid(String auctionId, double bidAmount, String bidderId) async {
     try {
       final auction = await supabase
@@ -178,29 +96,93 @@ Stream<List<Auction>> getAllAuctions() {
                                (auction['starting_price'] as num).toDouble();
       String? previousHighestBidderId = auction['highest_bidder_id'];
 
-      if (bidAmount > currentHighestBid) {
-        // Store bid with reference to the previous highest bidder
-        await supabase.from('bids').insert({
-          'auction_id': auctionId,
-          'bidder_id': bidderId,
-          'amount': bidAmount,
-          'previous_highest_bidder_id': previousHighestBidderId,
-          'created_at': DateTime.now().toIso8601String(),
-        });
-
-        // Update auction with new highest bid
-        await supabase.from('auctions').update({
-          'highest_bid': bidAmount,
-          'highest_bidder_id': bidderId,
-        }).eq('id', auctionId);
-
-        log("✅ Bid Placed: $bidAmount by $bidderId");
-      } else {
+      if (bidAmount <= currentHighestBid) {
         throw Exception("Bid must be higher than the current highest bid!");
       }
+
+      // Store bid with reference to the previous highest bidder
+      await supabase.from('bids').insert({
+        'auction_id': auctionId,
+        'bidder_id': bidderId,
+        'amount': bidAmount,
+        'previous_highest_bidder_id': previousHighestBidderId,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      // Update auction with new highest bid
+      await supabase.from('auctions').update({
+        'highest_bid': bidAmount,
+        'highest_bidder_id': bidderId,
+      }).eq('id', auctionId);
+
+      // Tag the user with OneSignal for future notifications
+      await _oneSignalService.initialize();
+      await _oneSignalService.tagUserWithAuctionId(auctionId);
+
+      // Handle notification for outbid user if there was a previous bidder
+      if (previousHighestBidderId != null && previousHighestBidderId != bidderId) {
+        await _handleOutbid({
+          'auction_id': auctionId,
+          'amount': bidAmount,
+          'bidder_id': bidderId
+        }, previousHighestBidderId);
+      }
+
+      log("✅ Bid Placed: $bidAmount by $bidderId");
     } catch (e, stackTrace) {
       log("❌ Error Placing Bid: $e", error: e, stackTrace: stackTrace);
       rethrow;
+    }
+  }
+
+  /// Real-time updates for bids on a specific auction
+  Stream<List<Map<String, dynamic>>> listenToBids(String auctionId) {
+    return supabase
+        .from('bids')
+        .stream(primaryKey: ['id'])
+        .eq('auction_id', auctionId)
+        .map((snapshot) => snapshot.toList());
+  }
+
+  /// Listen for outbids on auctions the user has bid on
+  Stream<Map<String, dynamic>> listenForOutbids(String userId) {
+    return supabase
+        .from('bids')
+        .stream(primaryKey: ['id'])
+        .eq('previous_highest_bidder_id', userId)
+        .map((snapshot) {
+          if (snapshot.isNotEmpty) {
+            for (final bid in snapshot) {
+              _handleOutbid(bid, userId);
+            }
+          }
+          return {'outbid': snapshot.isNotEmpty};
+        });
+  }
+
+  /// Handle outbid notification
+  Future<void> _handleOutbid(Map<String, dynamic> bid, String userId) async {
+    try {
+      // Get auction details
+      final auction = await supabase
+          .from('auctions')
+          .select()
+          .eq('id', bid['auction_id'])
+          .maybeSingle();
+      
+      if (auction != null) {
+        // Show notification to the outbid user
+        await _notificationService.showOutbidNotification(
+          auction['title'], 
+          (bid['amount'] as num).toDouble()
+        );
+        
+        // You would typically call your OneSignal external notification here
+        // This is a placeholder for that functionality
+        log("📣 Outbid notification sent to $userId");
+      }
+    } catch (e, stackTrace) {
+      log("❌ Error handling outbid: $e", error: e, stackTrace: stackTrace);
     }
   }
 
@@ -232,9 +214,8 @@ Stream<List<Auction>> getAllAuctions() {
         }
         
         // Send notification to all bidders
-        final notificationService = NotificationService();
         for (final bidderId in bidders) {
-          await notificationService.showAuctionEndingNotification(auction['title']);
+          await _notificationService.showAuctionEndingNotification(auction['title']);
         }
         
         // Mark auction as notified
@@ -270,8 +251,7 @@ Stream<List<Auction>> getAllAuctions() {
         
         // If there's a highest bidder, notify them
         if (auction['highest_bidder_id'] != null) {
-          final notificationService = NotificationService();
-          await notificationService.showAuctionWonNotification(auction['title']);
+          await _notificationService.showAuctionWonNotification(auction['title']);
           
           log("📣 Auction won notification sent to: ${auction['highest_bidder_id']}");
         }
@@ -281,4 +261,3 @@ Stream<List<Auction>> getAllAuctions() {
     }
   }
 }
-

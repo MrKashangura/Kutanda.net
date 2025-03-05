@@ -3,5 +3,11 @@
         "comments": "off",
         "strings": "off",
         "other": "off"
-    }
+    },
+    "cSpell.words": [
+        "cupertino",
+        "onesignal",
+        "pinput",
+        "supabase"
+    ]
 }
