@@ -14,21 +14,21 @@ class CSRPerformanceChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Extract metrics for display
-    final int csrTotalTickets = csrPerformance['total_tickets'] ?? 0;
-    final int csrResolvedTickets = csrPerformance['resolved_tickets'] ?? 0;
-    final double csrResolutionRate = csrPerformance['resolution_rate'] ?? 0.0;
+    // Extract values from the performance maps with defaults for safety
+    final int csrTotalTickets = csrPerformance['total_tickets'] as int? ?? 0;
+    final int csrResolvedTickets = csrPerformance['resolved_tickets'] as int? ?? 0;
+    final double csrResolutionRate = csrPerformance['resolution_rate'] as double? ?? 0.0;
     final Duration? csrAvgResolutionTime = csrPerformance['average_resolution_time'] as Duration?;
     
-    final int teamTotalTickets = teamAverage['total_tickets'] ?? 0;
-    final double teamResolutionRate = teamAverage['resolution_rate'] ?? 0.0;
+    final int teamTotalTickets = teamAverage['total_tickets'] as int? ?? 0;
+    final double teamResolutionRate = teamAverage['resolution_rate'] as double? ?? 0.0;
     final Duration? teamAvgResolutionTime = teamAverage['average_resolution_time'] as Duration?;
     
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: ListView(  // Using ListView instead of Column to handle overflow
+          shrinkWrap: true, // Ensure the ListView takes only the space it needs
           children: [
             const Text(
               'Performance Metrics',
@@ -111,7 +111,7 @@ class CSRPerformanceChart extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildMetricComparisonRow(
     BuildContext context,
     String metricName, 

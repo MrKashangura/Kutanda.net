@@ -5,6 +5,7 @@ import '../services/session_service.dart';
 import '../services/user_service.dart';
 import 'admin_dashboard.dart';
 import 'buyer_dashboard.dart';
+import 'csr_dashboard.dart';
 import 'seller_dashboard.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -65,6 +66,9 @@ class LoginScreenState extends State<LoginScreen> {
       case "admin":
         screen = const AdminDashboard();
         break;
+      case "csr":
+        screen = const CSRDashboard();
+      break;
       default:
         debugPrint("⚠️ Unknown role.");
         return;

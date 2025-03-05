@@ -226,7 +226,7 @@ class _CSRAnalyticsScreenState extends State<CSRAnalyticsScreen> {
               ),
               const SizedBox(height: 8),
               SizedBox(
-                height: 250,
+                height: 320, // Increased height to accommodate content
                 child: CSRPerformanceChart(
                   csrPerformance: _csrPerformance,
                   teamAverage: _calculateTeamAverages(),

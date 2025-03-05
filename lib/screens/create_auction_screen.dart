@@ -89,14 +89,16 @@ final auction = Auction(
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Create Auction")),
-      body: Padding(
+  return Scaffold(
+    appBar: AppBar(title: const Text("Create Auction")),
+    body: SafeArea(  // Add SafeArea for better edge handling
+      child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
-          child: SingleChildScrollView(
+          child: SingleChildScrollView(  // Ensure the form can scroll
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,  // Stretch widgets to fill width
               children: [
                 TextFormField(
                   controller: titleController,
@@ -145,6 +147,7 @@ final auction = Auction(
           ),
         ),
       ),
+    ),
     );
   }
 }

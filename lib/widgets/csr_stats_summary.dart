@@ -78,9 +78,12 @@ class _CSRStatsSummaryState extends State<CSRStatsSummary> {
     }
     
     return Container(
-      padding: const EdgeInsets.all(16.0),
+    padding: const EdgeInsets.all(16.0),
+    child: SingleChildScrollView(  // Add SingleChildScrollView to handle horizontal overflow
+      scrollDirection: Axis.horizontal,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,  // Add this to prevent the column from taking all available space
         children: [
           // Title with refresh button
           Row(
@@ -161,6 +164,7 @@ class _CSRStatsSummaryState extends State<CSRStatsSummary> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

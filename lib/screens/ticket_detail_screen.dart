@@ -647,18 +647,19 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   
   Widget _buildMessageList() {
     final messages = _ticket!.messages;
-    
-    if (messages.isEmpty) {
-      return const Center(
-        child: Text('No messages yet'),
-      );
-    }
-    
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.all(16),
-      itemCount: messages.length,
-      itemBuilder: (context, index) {
+  
+  if (messages.isEmpty) {
+    return const Center(
+      child: Text('No messages yet'),
+    );
+  }
+  
+    return Expanded(  // Make sure the ListView is wrapped in an Expanded widget
+      child: ListView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.all(16),
+        itemCount: messages.length,
+        itemBuilder: (context, index) {
         final message = messages[index];
         final isFromCSR = message.isFromCSR;
         
@@ -710,6 +711,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           ),
         );
       },
+      )
     );
   }
   
