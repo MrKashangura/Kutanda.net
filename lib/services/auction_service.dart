@@ -161,31 +161,41 @@ class AuctionService {
   }
 
   /// Handle outbid notification
-  Future<void> _handleOutbid(Map<String, dynamic> bid, String userId) async {
-    try {
-      // Get auction details
-      final auction = await supabase
-          .from('auctions')
-          .select()
-          .eq('id', bid['auction_id'])
-          .maybeSingle();
+Future<void> _handleOutbid(Map<String, dynamic> bid, String userId) async {
+  try {
+    // Get auction details
+    final auction = await supabase
+        .from('auctions')
+        .select('id, title, seller_id')
+        .eq('id', bid['auction_id'])
+        .maybeSingle();
+    
+    if (auction != null) {
+      // Show local notification to the outbid user
+      await _notificationService.showOutbidNotification(
+        auction['title'], 
+        (bid['amount'] as num).toDouble()
+      );
       
-      if (auction != null) {
-        // Show notification to the outbid user
-        await _notificationService.showOutbidNotification(
-          auction['title'], 
-          (bid['amount'] as num).toDouble()
-        );
-        
-        // You would typically call your OneSignal external notification here
-        // This is a placeholder for that functionality
-        log("📣 Outbid notification sent to $userId");
-      }
-    } catch (e, stackTrace) {
-      log("❌ Error handling outbid: $e", error: e, stackTrace: stackTrace);
+      // Send push notification via OneSignal
+      await _oneSignalService.triggerNotification(
+        notificationType: 'outbid',
+        targetUserIds: [userId],
+        auctionId: auction['id'],
+        title: 'You\'ve been outbid!',
+        message: 'Someone placed a higher bid on ${auction['title']}',
+        additionalData: {
+          'amount': (bid['amount'] as num).toDouble(),
+          'bidder_id': bid['bidder_id']
+        }
+      );
+      
+      log("📣 Outbid notification sent to $userId");
     }
+  } catch (e, stackTrace) {
+    log("❌ Error handling outbid: $e", error: e, stackTrace: stackTrace);
   }
-
+}
   /// Check for auctions ending soon (within 5 minutes) and send notifications
   Future<void> checkEndingSoonAuctions() async {
     try {

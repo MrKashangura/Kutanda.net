@@ -15,8 +15,8 @@ class OneSignalService {
   final SupabaseClient _supabase = Supabase.instance.client;
   bool _isInitialized = false;
 
-  // Your OneSignal App ID - you'll need to create an account and app at onesignal.com
-  static const String _appId = 'YOUR_ONESIGNAL_APP_ID';
+  // Replace with your actual OneSignal App ID
+  static const String _appId = '474b0ac4-c770-4050-b4b2-6b8cbef188a7';
   
   /// Initialize OneSignal
   Future<void> initialize() async {
@@ -24,21 +24,16 @@ class OneSignalService {
     
     try {
       // Initialize OneSignal with your app ID
-      // No need for await on methods that don't return a Future
       OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
-      OneSignal.initialize(_appId); // Removed await since this method returns void
+      OneSignal.initialize(_appId);
       
       // Request push notification permission
       await OneSignal.Notifications.requestPermission(true);
 
       // Set notification handlers
-      OneSignal.Notifications.addClickListener((event) {
-        log('OneSignal notification clicked: ${event.notification.title}');
-        _handleNotificationOpened(event);
-      });
+      OneSignal.Notifications.addClickListener(_handleNotificationOpened);
       
       OneSignal.Notifications.addForegroundWillDisplayListener((event) {
-        // Display notification while app is in foreground
         event.preventDefault();
         event.notification.display();
       });
@@ -56,9 +51,8 @@ class OneSignalService {
   /// Get the OneSignal external ID (player ID)
   Future<String?> _getExternalId() async {
     try {
-      // No need for await on a property getter
       final deviceState = OneSignal.User.pushSubscription.id;
-      return deviceState;  // This is the OneSignal Player ID
+      return deviceState;
     } catch (e) {
       log('❌ Error getting OneSignal device ID: $e');
       return null;
@@ -85,7 +79,7 @@ class OneSignalService {
         {
           'user_id': user.id,
           'onesignal_id': externalId,
-          'device_type': 'mobile', // You could get more detailed device info if needed
+          'device_type': 'mobile',
           'last_updated': DateTime.now().toIso8601String(),
           'is_active': true,
         },
@@ -94,7 +88,6 @@ class OneSignalService {
       
       // Set Supabase user ID as an external ID in OneSignal for targeting
       await OneSignal.login(user.id);
-      // The setExternalUserId method doesn't exist, use login instead
       
       log('✅ OneSignal ID saved for user ${user.id}');
     } catch (e) {
@@ -116,9 +109,7 @@ class OneSignalService {
         case 'outbid':
           final auctionId = data['auction_id'] as String?;
           if (auctionId != null) {
-            // Navigate to auction details - this requires a navigation service 
-            // or context that we don't have here, so this would need to be 
-            // implemented in your app's global state management
+            // Navigation would happen through a global state management solution
             log('Should navigate to auction details: $auctionId');
           }
           break;
@@ -183,7 +174,6 @@ class OneSignalService {
       
       // Remove user ID from OneSignal and clear tags
       await OneSignal.logout();
-      // removeExternalUserId is not defined, use logout() instead
       await OneSignal.User.removeTags(['auction_*']);
       
       log('✅ OneSignal user data cleared');
@@ -192,23 +182,17 @@ class OneSignalService {
     }
   }
   
-  /// Call the Supabase Edge Function to send an external notification
-  Future<void> triggerExternalNotification({
+  /// Send a notification through Supabase Edge Function
+  Future<void> triggerNotification({
     required String notificationType,
-    required List<String> targetUsers,
+    required List<String> targetUserIds,
     required String auctionId,
     required String title,
     required String message,
     Map<String, dynamic>? additionalData,
   }) async {
     try {
-      // Get the authorization token - requires the user to be logged in
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
-        log("⚠️ Cannot send notification: No authenticated user");
-        return;
-      }
-      
+      // Get the authorization token
       final session = _supabase.auth.currentSession;
       final jwt = session?.accessToken;
       if (jwt == null) {
@@ -216,7 +200,6 @@ class OneSignalService {
         return;
       }
       
-      // Using the correct URL format for Supabase - supabaseUrl property doesn't exist
       final supabaseUrl = 'https://dcjycjiqelcftxbymley.supabase.co';
       
       // Call the edge function
@@ -228,7 +211,7 @@ class OneSignalService {
         },
         body: jsonEncode({
           'notificationType': notificationType,
-          'targetUsers': targetUsers,
+          'targetUserIds': targetUserIds,
           'auctionId': auctionId,
           'title': title,
           'message': message,
