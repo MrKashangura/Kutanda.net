@@ -3,7 +3,7 @@ import 'dart:developer';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/support_ticket_model.dart';
+import '../data/models/support_ticket_model.dart';
 
 class ContentModerationService {
   final SupabaseClient _supabase = Supabase.instance.client;

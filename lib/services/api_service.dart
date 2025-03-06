@@ -4,7 +4,7 @@ import 'dart:developer';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'role_service.dart';
+import '../shared/services/role_service.dart';
 
 class ApiService {
   static const String baseUrl = 'https://api.kutanda.com'; // Replace with your actual API URL

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'screens/admin_dashboard.dart';
-import 'screens/buyer_dashboard.dart';
-import 'screens/csr_dashboard.dart';
-import 'screens/login_screen.dart';
-import 'screens/seller_dashboard.dart';
-import 'services/onesignal_service.dart';
-import 'services/session_service.dart';
+import 'features/auctions/screens/buyer_dashboard.dart';
+import 'features/auctions/screens/seller_dashboard.dart';
+import 'features/auth/screens/login_screen.dart';
+import 'features/support/screens/admin_dashboard.dart';
+import 'features/support/screens/csr_dashboard.dart';
+import 'shared/services/onesignal_service.dart';
+import 'shared/services/session_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
