@@ -1,3 +1,4 @@
+// lib/shared/widgets/custom_textfield.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -418,7 +419,7 @@ class PriceTextField extends StatelessWidget {
       onSubmitted: onSubmitted,
       // Allow only numbers with decimal point
       inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
       ],
       validator: (value) {
         if (value == null || value.isEmpty) {
@@ -488,9 +489,11 @@ class SearchTextField extends StatelessWidget {
         if (onClear != null) {
           onClear!();
         }
+        if (onChanged != null) {
+          onChanged!('');
+        }
       },
       onChanged: (value) {
-        // This forces a rebuild to show/hide the clear button
         if (onChanged != null) {
           onChanged!(value);
         }
@@ -510,6 +513,9 @@ class SearchTextField extends StatelessWidget {
                   controller.clear();
                   if (onClear != null) {
                     onClear!();
+                  }
+                  if (onChanged != null) {
+                    onChanged!('');
                   }
                 },
               )

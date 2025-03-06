@@ -1,27 +1,30 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'features/auctions/screens/buyer_dashboard.dart';
-import 'features/auctions/screens/seller_dashboard.dart';
-import 'features/auth/screens/login_screen.dart';
-import 'features/support/screens/admin_dashboard.dart';
-import 'features/support/screens/csr_dashboard.dart';
+import 'config/app.dart';
+import 'config/env_config.dart';
 import 'shared/services/onesignal_service.dart';
 import 'shared/services/session_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Initialize Supabase
+  
+  // Load environment variables
+  await dotenv.load(fileName: ".env");
+  
+  // Initialize Supabase with values from EnvConfig
   await Supabase.initialize(
-    url: 'https://dcjycjiqelcftxbymley.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjanljamlxZWxjZnR4YnltbGV5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAyMTIwNTksImV4cCI6MjA1NTc4ODA1OX0.DmLByHHoWeRPusRD2EoYLxxk5F_soscl3jKg7mE4pPM',
+    url: EnvConfig.supabaseUrl,
+    anonKey: EnvConfig.supabaseAnonKey,
   );
 
   // Initialize services
   final oneSignalService = OneSignalService();
   await oneSignalService.initialize();
 
-  runApp(const AppInitializer()); // ✅ Properly initialize session
+  runApp(const AppInitializer());
 }
 
 class AppInitializer extends StatefulWidget {
@@ -33,7 +36,7 @@ class AppInitializer extends StatefulWidget {
 
 class AppInitializerState extends State<AppInitializer> {
   Future<Map<String, String?>> _loadSession() async {
-    return await SessionService.getUserSession(); // ✅ Load session asynchronously
+    return await SessionService.getUserSession();
   }
 
   @override
@@ -44,55 +47,13 @@ class AppInitializerState extends State<AppInitializer> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const MaterialApp(
             home: Scaffold(
-              body: Center(child: CircularProgressIndicator()), // ✅ Show loading screen while fetching session
+              body: Center(child: CircularProgressIndicator()),
             ),
           );
         }
 
-        return MyApp(session: snapshot.data ?? {}); // ✅ Pass session data to MyApp
+        return App(session: snapshot.data ?? {});
       },
-    );
-  }
-}
-
-class MyApp extends StatelessWidget {
-  final Map<String, String?> session;
-
-  const MyApp({required this.session, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    Widget initialScreen;
-
-    if (session['uid'] != null && session['role'] != null) {
-      debugPrint("Authenticated User UID: ${session['uid']}");
-      debugPrint("User Role Fetched: ${session['role']}");
-
-      switch (session['role']) {
-        case "buyer":
-          initialScreen = const BuyerDashboard();
-          break;
-        case "seller":
-          initialScreen = const SellerDashboard();
-          break;
-        case "admin":
-          initialScreen = const AdminDashboard();
-          break;
-        case "csr": // ✅ NEW: Handle CSR role
-          initialScreen = const CSRDashboard();
-          break;
-        default:
-          debugPrint("⚠️ Unknown role: ${session['role']} - Redirecting to LoginScreen");
-          initialScreen = const LoginScreen();
-      }
-    } else {
-      debugPrint("⚠️ No valid session found - Redirecting to LoginScreen");
-      initialScreen = const LoginScreen();
-    }
-
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: initialScreen,
     );
   }
 }
