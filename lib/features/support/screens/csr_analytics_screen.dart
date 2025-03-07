@@ -4,7 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/utils/helpers.dart';
 import '../../../services/csr_analytics_service.dart';
-import '../../../services/user_management_service.dart';
 import '../../../widgets/resolution_time_chart.dart';
 import '../../../widgets/ticket_distribution_chart.dart';
 import '../widgets/csr_drawer.dart';
@@ -19,7 +18,6 @@ class CSRAnalyticsScreen extends StatefulWidget {
 
 class _CSRAnalyticsScreenState extends State<CSRAnalyticsScreen> {
   final CsrAnalyticsService _analyticsService = CsrAnalyticsService();
-  final UserManagementService _userService = UserManagementService();
   final SupabaseClient _supabase = Supabase.instance.client;
   
   bool _isLoading = true;
@@ -33,7 +31,7 @@ class _CSRAnalyticsScreenState extends State<CSRAnalyticsScreen> {
   Map<String, dynamic> _csrPerformance = {};
   List<Map<String, dynamic>> _allCsrPerformance = [];
   Map<int, int> _ticketVolumeByHour = {};
-  Map<String, dynamic> _userRegistrationStats = {};
+  // Removed unused field _userRegistrationStats
   Map<String, dynamic> _satisfactionStats = {};
 
   @override
@@ -64,7 +62,7 @@ class _CSRAnalyticsScreenState extends State<CSRAnalyticsScreen> {
       final futureCommonIssueTypes = _analyticsService.getCommonIssueTypes(lastDays: days);
       final futureAllCsrPerformance = _analyticsService.getAllCsrPerformance(lastDays: days);
       final futureTicketVolumeByHour = _analyticsService.getTicketVolumeByHour(lastDays: days);
-      final futureUserRegistrationStats = _userService.getUserRegistrationStats(lastDays: days);
+      // Removed unused call to getUserRegistrationStats
       final futureSatisfactionStats = _analyticsService.getCustomerSatisfactionStats(lastDays: days);
       
       // Load CSR-specific performance if ID is available
@@ -80,7 +78,6 @@ class _CSRAnalyticsScreenState extends State<CSRAnalyticsScreen> {
         futureCommonIssueTypes,
         futureAllCsrPerformance,
         futureTicketVolumeByHour,
-        futureUserRegistrationStats,
         futureSatisfactionStats,
       ]);
       
@@ -95,8 +92,7 @@ class _CSRAnalyticsScreenState extends State<CSRAnalyticsScreen> {
         _commonIssueTypes = results[2] as List<Map<String, dynamic>>;
         _allCsrPerformance = results[3] as List<Map<String, dynamic>>;
         _ticketVolumeByHour = results[4] as Map<int, int>;
-        _userRegistrationStats = results[5] as Map<String, dynamic>;
-        _satisfactionStats = results[6] as Map<String, dynamic>;
+        _satisfactionStats = results[5] as Map<String, dynamic>;
         _csrPerformance = csrPerformance;
         _isLoading = false;
       });
@@ -649,7 +645,7 @@ class _CSRAnalyticsScreenState extends State<CSRAnalyticsScreen> {
                   ],
                 ),
               );
-            }).toList(),
+            }),
             
             const SizedBox(height: 20),
             
