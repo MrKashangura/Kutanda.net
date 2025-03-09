@@ -150,7 +150,7 @@ class CustomTextField extends StatelessWidget {
       filled: true,
       fillColor: enabled 
           ? theme.colorScheme.surface 
-          : theme.colorScheme.surfaceVariant.withOpacity(0.5),
+          : theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
     
@@ -432,11 +432,11 @@ class PriceTextField extends StatelessWidget {
         }
         
         if (minValue != null && price < minValue!) {
-          return 'Price cannot be less than ${currencySymbol}${minValue!.toStringAsFixed(2)}';
+          return 'Price cannot be less than $currencySymbol${minValue!.toStringAsFixed(2)}';
         }
         
         if (maxValue != null && price > maxValue!) {
-          return 'Price cannot be more than ${currencySymbol}${maxValue!.toStringAsFixed(2)}';
+          return 'Price cannot be more than $currencySymbol${maxValue!.toStringAsFixed(2)}';
         }
         
         return null;

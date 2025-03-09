@@ -681,9 +681,9 @@ class _CSRAnalyticsScreenState extends State<CSRAnalyticsScreen> {
     
     // Find the max value for scaling the bars
     int maxVolume = 0;
-    _ticketVolumeByHour.values.forEach((value) {
+    for (var value in _ticketVolumeByHour.values) {
       if (value > maxVolume) maxVolume = value;
-    });
+    }
     
     return Card(
       child: Padding(
