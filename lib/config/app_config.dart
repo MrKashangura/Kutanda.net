@@ -1,8 +1,28 @@
 // lib/config/app_config.dart
 import 'package:flutter/material.dart';
-
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 /// Contains application-wide configuration settings
 class AppConfig {
+  // Supabase configuration
+  static String get supabaseUrl => 
+    dotenv.get('SUPABASE_URL', fallback: 'https://dcjycjiqelcftxbymley.supabase.co');
+  
+  static String get supabaseAnonKey => 
+    dotenv.get('SUPABASE_ANON_KEY', fallback: 'your-anon-key-here');
+  
+  // OneSignal configuration
+  static String get oneSignalAppId => 
+    dotenv.get('ONESIGNAL_APP_ID', fallback: '474b0ac4-c770-4050-b4b2-6b8cbef188a7');
+  
+  // App configuration
+  static bool get enableNotifications => true;
+  static bool get enableAutoLogin => true;
+  static int get cacheTimeoutMinutes => 60;
+  
+  // Feature flags
+  static bool get enableDirectMessaging => false;
+  static bool get enableLiveAuctions => true;
+  static bool get enableSellerKYC => true;
   // App Information
   static const String appName = 'Kutanda Plant Auction';
   static const String appVersion = '1.0.0';
