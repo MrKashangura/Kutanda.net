@@ -77,7 +77,7 @@ class AuthProvider extends ChangeNotifier {
             final userResponse = await supabase
                 .from('users')
                 .select('role')
-                .eq('id', _user!.id)
+                .eq('uid', _user!.id)
                 .maybeSingle();
             
             if (kDebugMode) {
@@ -125,7 +125,7 @@ class AuthProvider extends ChangeNotifier {
         final userResponse = await supabase
             .from('users')
             .select('role')
-            .eq('id', _user!.id)
+            .eq('uid', _user!.id)
             .maybeSingle();
 
         if (kDebugMode) {
@@ -195,7 +195,7 @@ class AuthProvider extends ChangeNotifier {
       if (_user != null) {
         // Create user record in database with default buyer role
         await supabase.from('users').insert({
-          'id': _user!.id,
+          'uid': _user!.id,
           'email': email,
           'role': 'buyer',
           'created_at': DateTime.now().toIso8601String(),

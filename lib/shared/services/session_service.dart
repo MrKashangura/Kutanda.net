@@ -59,12 +59,12 @@ class SessionService {
           return {};
         }
 
-        role = response['role'] ?? "unknown";
+        role = (response['role'] ?? "unknown").toString();
         uid = user.id;  // Set uid from the supabase user id
         
         // Save to preferences
         await prefs.setString('uid', uid);
-        await prefs.setString('role', role ?? 'unknown');
+        await prefs.setString('role', role);
         
         log("✅ Session retrieved from Supabase: UID=$uid, Role=$role");
         return {'uid': uid, 'role': role};

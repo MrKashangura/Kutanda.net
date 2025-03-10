@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 
 import '../../../providers/auth_provider.dart';
 import '../../../shared/widgets/custom_button.dart';
-import '../../../shared/widgets/custom_textfield.dart';
 import '../../profile/screens/profile_screen.dart';
 import 'register_screen.dart';
 
@@ -24,7 +23,7 @@ class LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String? _errorMessage;
 
-  Future<void> _login() async {
+  void _login() {
     if (!_formKey.currentState!.validate()) return;
     
     setState(() {
@@ -32,60 +31,63 @@ class LoginScreenState extends State<LoginScreen> {
       _errorMessage = null;
     });
 
-    try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      
-      if (kDebugMode) {
-        log('Attempting login with: ${_emailController.text}');
-      }
-      
-      final success = await authProvider.signIn(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
-
-      if (kDebugMode) {
-        log('Login result: $success, Auth state: ${authProvider.isAuthenticated}, User: ${authProvider.user?.id}, Role: ${authProvider.role}');
-      }
-
-      if (!mounted) return;
-
-      if (success) {
-        // Navigate to the appropriate screen based on role
-        switch (authProvider.role) {
-          case 'buyer':
-          case 'seller':
-          case 'admin':
-          case 'csr':
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const ProfileScreen()),
-            );
-            break;
-          default:
-            setState(() {
-              _errorMessage = 'Unknown role: ${authProvider.role}';
-              _isLoading = false;
-            });
+    // Use Future.delayed to handle the async login process
+    Future.delayed(Duration.zero, () async {
+      try {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        
+        if (kDebugMode) {
+          log('Attempting login with: ${_emailController.text}');
         }
-      } else {
+        
+        final success = await authProvider.signIn(
+          _emailController.text.trim(),
+          _passwordController.text,
+        );
+
+        if (kDebugMode) {
+          log('Login result: $success, Auth state: ${authProvider.isAuthenticated}, User: ${authProvider.user?.id}, Role: ${authProvider.role}');
+        }
+
+        if (!mounted) return;
+
+        if (success) {
+          // Navigate to the appropriate screen based on role
+          switch (authProvider.role) {
+            case 'buyer':
+            case 'seller':
+            case 'admin':
+            case 'csr':
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              );
+              break;
+            default:
+              setState(() {
+                _errorMessage = 'Unknown role: ${authProvider.role}';
+                _isLoading = false;
+              });
+          }
+        } else {
+          setState(() {
+            _errorMessage = authProvider.error ?? 'Login failed. Please try again.';
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          log('Error during login: $e');
+        }
+        
+        if (!mounted) return;
+        
         setState(() {
-          _errorMessage = authProvider.error ?? 'Login failed. Please try again.';
+          _errorMessage = e.toString();
           _isLoading = false;
         });
       }
-    } catch (e) {
-      if (kDebugMode) {
-        log('Error during login: $e');
-      }
-      
-      if (!mounted) return;
-      
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
-    }
+    });
   }
 
   @override
@@ -129,22 +131,44 @@ class LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 40),
                 
                 // Email field
-                EmailTextField(
+                TextFormField(
                   controller: _emailController,
+                  decoration: const InputDecoration(
+                    labelText: "Email",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.email),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
                   enabled: !_isLoading,
-                  errorText: null,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return "Please enter your email";
+                    }
+                    return null;
+                  },
                   textInputAction: TextInputAction.next,
                 ),
                 
                 const SizedBox(height: 16),
                 
                 // Password field
-                PasswordTextField(
+                TextFormField(
                   controller: _passwordController,
+                  decoration: const InputDecoration(
+                    labelText: "Password",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock),
+                  ),
+                  obscureText: true,
                   enabled: !_isLoading,
-                  errorText: null,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return "Please enter your password";
+                    }
+                    return null;
+                  },
                   textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _login(),
+                  onFieldSubmitted: (_) => _login(),
                 ),
                 
                 const SizedBox(height: 8),
@@ -167,7 +191,7 @@ class LoginScreenState extends State<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Color.fromRGBO(255, 0, 0, 0.1),
+                      color: const Color.fromRGBO(255, 0, 0, 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -183,7 +207,7 @@ class LoginScreenState extends State<LoginScreen> {
                 // Login button
                 CustomButton(
                   text: _isLoading ? "Logging in..." : "Login",
-                  onPressed: _isLoading ? null : () => _login(),
+                  onPressed: _isLoading ? null : _login,
                 ),
                 
                 const SizedBox(height: 24),
