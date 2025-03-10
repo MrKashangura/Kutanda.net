@@ -1,12 +1,14 @@
-import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:developer';
 
-import '../../../shared/services/session_service.dart';
-import '../../../shared/services/user_service.dart';
-import '../../auctions/screens/buyer_dashboard.dart';
-import '../../auctions/screens/seller_dashboard.dart';
-import '../../support/screens/admin_dashboard.dart';
-import '../../support/screens/csr_dashboard.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../../providers/auth_provider.dart';
+import '../../../shared/widgets/custom_button.dart';
+import '../../../shared/widgets/custom_textfield.dart';
+import '../../profile/screens/profile_screen.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,76 +18,74 @@ class LoginScreen extends StatefulWidget {
 }
 
 class LoginScreenState extends State<LoginScreen> {
-  final SupabaseClient supabase = Supabase.instance.client;
-  final UserService _userService = UserService();
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
+  String? _errorMessage;
 
-  Future<void> loginUser() async {
+  Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
+    
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     try {
-      final response = await supabase.auth.signInWithPassword(
-        email: emailController.text.trim(),
-        password: passwordController.text.trim(),
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      
+      if (kDebugMode) {
+        log('Attempting login with: ${_emailController.text}');
+      }
+      
+      final success = await authProvider.signIn(
+        _emailController.text.trim(),
+        _passwordController.text,
       );
 
-      final user = response.user;
-      if (user != null) {
-        debugPrint("✅ Authenticated User UID: ${user.id}");
-
-        String? role = await _userService.getUserRole(user.id);
-        debugPrint("✅ User role fetched: $role");
-
-        if (role != null) {
-          await SessionService.saveUserSession(user.id, role);
-          navigateBasedOnRole(role);
-        } else {
-          showErrorMessage("⚠️ Role not found. Contact support.");
-        }
+      if (kDebugMode) {
+        log('Login result: $success, Auth state: ${authProvider.isAuthenticated}, User: ${authProvider.user?.id}, Role: ${authProvider.role}');
       }
-    } on AuthException catch (e) {
-      showErrorMessage("❌ Login failed: ${e.message}");
+
+      if (!mounted) return;
+
+      if (success) {
+        // Navigate to the appropriate screen based on role
+        switch (authProvider.role) {
+          case 'buyer':
+          case 'seller':
+          case 'admin':
+          case 'csr':
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfileScreen()),
+            );
+            break;
+          default:
+            setState(() {
+              _errorMessage = 'Unknown role: ${authProvider.role}';
+              _isLoading = false;
+            });
+        }
+      } else {
+        setState(() {
+          _errorMessage = authProvider.error ?? 'Login failed. Please try again.';
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      showErrorMessage("❌ Unexpected error: $e");
+      if (kDebugMode) {
+        log('Error during login: $e');
+      }
+      
+      if (!mounted) return;
+      
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
     }
-  }
-
-  void navigateBasedOnRole(String role) {
-    if (!mounted) return;
-
-    Widget screen;
-    switch (role) {
-      case "buyer":
-        screen = const BuyerDashboard();
-        break;
-      case "seller":
-        screen = const SellerDashboard();
-        break;
-      case "admin":
-        screen = const AdminDashboard();
-        break;
-      case "csr":
-        screen = const CSRDashboard();
-      break;
-      default:
-        debugPrint("⚠️ Unknown role.");
-        return;
-    }
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => screen),
-    );
-  }
-
-  void showErrorMessage(String message) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
   }
 
   @override
@@ -93,33 +93,160 @@ class LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text("Login")),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              TextFormField(
-                controller: emailController,
-                decoration: const InputDecoration(labelText: "Email"),
-                validator: (value) =>
-                    value == null || value.isEmpty ? "Please enter your email" : null,
-              ),
-              TextFormField(
-                controller: passwordController,
-                decoration: const InputDecoration(labelText: "Password"),
-                obscureText: true,
-                validator: (value) =>
-                    value == null || value.isEmpty ? "Please enter your password" : null,
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: loginUser,
-                child: const Text("Login"),
-              ),
-            ],
+        padding: const EdgeInsets.all(20.0),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 40),
+                
+                // Header
+                const Center(
+                  child: Text(
+                    "Kutanda Plant Auction",
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 8),
+                
+                const Center(
+                  child: Text(
+                    "Sign in to your account",
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 40),
+                
+                // Email field
+                EmailTextField(
+                  controller: _emailController,
+                  enabled: !_isLoading,
+                  errorText: null,
+                  textInputAction: TextInputAction.next,
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Password field
+                PasswordTextField(
+                  controller: _passwordController,
+                  enabled: !_isLoading,
+                  errorText: null,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _login(),
+                ),
+                
+                const SizedBox(height: 8),
+                
+                // Password reset link
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _isLoading ? null : () {
+                      // Navigate to password reset screen
+                    },
+                    child: const Text("Forgot Password?"),
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+                
+                // Error message
+                if (_errorMessage != null)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Color.fromRGBO(255, 0, 0, 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      _errorMessage!,
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                
+                if (_errorMessage != null)
+                  const SizedBox(height: 16),
+                
+                // Login button
+                CustomButton(
+                  text: _isLoading ? "Logging in..." : "Login",
+                  onPressed: _isLoading ? null : () => _login(),
+                ),
+                
+                const SizedBox(height: 24),
+                
+                // Register link
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("Don't have an account?"),
+                    TextButton(
+                      onPressed: _isLoading ? null : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const RegisterScreen()),
+                        );
+                      },
+                      child: const Text("Sign Up"),
+                    ),
+                  ],
+                ),
+                
+                // Debug info for web
+                if (kDebugMode && kIsWeb)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Divider(),
+                        const Text(
+                          "Debug Information (Development Only)",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "Platform: Web Browser",
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                        const SizedBox(height: 4),
+                        Consumer<AuthProvider>(
+                          builder: (context, auth, _) => Text(
+                            "Auth State: ${auth.isAuthenticated ? 'Authenticated' : 'Not Authenticated'}",
+                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 }
