@@ -1,6 +1,5 @@
 // lib/config/routes.dart
 import 'package:flutter/material.dart';
-
 import '../features/auctions/screens/auction_screen.dart';
 import '../features/auctions/screens/buyer_dashboard.dart';
 import '../features/auctions/screens/create_auction_screen.dart';
@@ -10,7 +9,12 @@ import '../features/auth/screens/register_screen.dart';
 import '../features/profile/screens/kyc_submission_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
 import '../features/profile/screens/role_switch_screen.dart';
+import '../features/support/screens/admin_analytics_screen.dart';
+import '../features/support/screens/admin_content_moderation_screen.dart';
+import '../features/support/screens/admin_csr_management_screen.dart';
 import '../features/support/screens/admin_dashboard.dart';
+import '../features/support/screens/admin_system_config_screen.dart';
+import '../features/support/screens/admin_user_management_screen.dart';
 import '../features/support/screens/csr_analytics_screen.dart';
 import '../features/support/screens/csr_content_moderation_screen.dart';
 import '../features/support/screens/csr_dashboard.dart';
@@ -20,7 +24,6 @@ import '../features/support/screens/ticket_detail_screen.dart';
 
 final Map<String, WidgetBuilder> appRoutes = {
   // Auth Routes
-  '/': (context) => const LoginScreen(),
   '/login': (context) => const LoginScreen(),
   '/register': (context) => const RegisterScreen(),
   
@@ -28,7 +31,6 @@ final Map<String, WidgetBuilder> appRoutes = {
   '/home': (context) => const EnhancedAuctionScreen(),
   '/buyer_dashboard': (context) => const BuyerDashboard(),
   '/seller_dashboard': (context) => const SellerDashboard(),
-  '/admin_dashboard': (context) => const AdminDashboard(),
   
   // Profile Routes
   '/profile': (context) => const ProfileScreen(),
@@ -39,6 +41,14 @@ final Map<String, WidgetBuilder> appRoutes = {
   '/explore': (context) => const EnhancedAuctionScreen(),
   '/create_auction': (context) => const CreateAuctionScreen(),
   '/auction_detail': (context) => const EnhancedAuctionScreen(),
+  
+  // Admin Routes
+  '/admin_dashboard': (context) => const AdminDashboard(),
+  '/admin_users': (context) => const AdminUserManagementScreen(),
+  '/admin_csrs': (context) => const AdminCsrManagementScreen(),
+  '/admin_content': (context) => const AdminContentModerationScreen(),
+  '/admin_analytics': (context) => const AdminAnalyticsScreen(),
+  '/admin_config': (context) => const AdminSystemConfigScreen(),
   
   // CSR Routes
   '/csr_dashboard': (context) => const CSRDashboard(),

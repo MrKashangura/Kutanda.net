@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'config/routes.dart'; // Add this import
 import 'core/utils/constants.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'providers/auth_provider.dart';
@@ -84,6 +85,7 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
+      routes: appRoutes, // Add this line to register all routes
       home: const LoginScreen(),
     );
   }
