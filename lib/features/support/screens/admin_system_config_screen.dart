@@ -1,6 +1,5 @@
 // lib/features/support/screens/admin_system_config_screen.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/app_config.dart';
 import '../widgets/admin_drawer.dart';

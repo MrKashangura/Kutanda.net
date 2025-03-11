@@ -1,17 +1,12 @@
-// lib/features/support/screens/admin_dashboard.dart
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../config/app_config.dart';
+import '../../../services/user_management_service.dart';
 import '../../../shared/services/session_service.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../auth/screens/login_screen.dart';
-import '../widgets/admin_drawer.dart';
-import 'admin_user_management_screen.dart';
-import 'admin_csr_management_screen.dart';
-import 'admin_content_moderation_screen.dart';
-import 'admin_analytics_screen.dart';
-import 'admin_system_config_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -22,8 +17,11 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final UserManagementService _userService = UserManagementService();
+  
   bool _isLoading = true;
   Map<String, dynamic> _dashboardStats = {};
+  String? _error;
 
   @override
   void initState() {
@@ -32,48 +30,48 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Future<void> _loadDashboardData() async {
-    setState(() => _isLoading = true);
-    
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
     try {
-      // Get user stats
-      final usersResponse = await _supabase
-          .from('users')
-          .select('role', count: CountOption.exact);
+      // Fetch total users count
+      final usersResponse = await _supabase.from('users').select('id');
+      final totalUsers = usersResponse.length;
       
-      final userCount = usersResponse.count ?? 0;
-      
-      // Get seller verification stats
-      final pendingVerifications = await _supabase
+      // Fetch pending verifications count
+      final pendingVerificationsResponse = await _supabase
           .from('sellers')
           .select('id')
-          .eq('kyc_status', 'pending')
-          .count();
+          .eq('kyc_status', 'pending');
+      final pendingVerifications = pendingVerificationsResponse.length;
       
-      // Get content moderation stats
-      final pendingAuctions = await _supabase
+      // Fetch pending auctions count
+      final pendingAuctionsResponse = await _supabase
           .from('auctions')
           .select('id')
           .eq('is_approved', false)
-          .eq('is_active', true)
-          .count();
+          .eq('is_active', true);
+      final pendingAuctions = pendingAuctionsResponse.length;
       
-      // Get support ticket stats
-      final openTickets = await _supabase
+      // Fetch open tickets count
+      final openTicketsResponse = await _supabase
           .from('support_tickets')
           .select('id')
-          .eq('status', 'open')
-          .count();
+          .eq('status', 'open');
+      final openTickets = openTicketsResponse.length;
       
-      // Get report stats
-      final pendingReports = await _supabase
+      // Fetch pending reports count
+      final pendingReportsResponse = await _supabase
           .from('content_reports')
           .select('id')
-          .eq('status', 'pending')
-          .count();
-      
+          .eq('status', 'pending');
+      final pendingReports = pendingReportsResponse.length;
+
       setState(() {
         _dashboardStats = {
-          'totalUsers': userCount,
+          'totalUsers': totalUsers,
           'pendingVerifications': pendingVerifications,
           'pendingAuctions': pendingAuctions,
           'openTickets': openTickets,
@@ -82,12 +80,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
         _isLoading = false;
       });
     } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading dashboard data: $e')),
-        );
-      }
+      log('Error loading dashboard data: $e');
+      setState(() {
+        _error = 'Error loading dashboard data. Please try again.';
+        _isLoading = false;
+      });
     }
   }
 
@@ -100,7 +97,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadDashboardData,
-            tooltip: "Refresh Data",
+            tooltip: 'Refresh Data',
           ),
           IconButton(
             icon: const Icon(Icons.logout),
@@ -114,14 +111,39 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 MaterialPageRoute(builder: (context) => const LoginScreen()),
               );
             },
-            tooltip: "Logout",
+            tooltip: 'Logout',
           ),
         ],
       ),
-      drawer: const AdminDrawer(),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _buildDashboardContent(),
+      drawer: _buildAdminDrawer(),
+      body: _isLoading ? 
+        const Center(child: CircularProgressIndicator()) : 
+        _error != null ? 
+          _buildErrorView() : 
+          _buildDashboardContent(),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red, size: 60),
+          const SizedBox(height: 16),
+          Text(
+            _error ?? 'An error occurred',
+            style: const TextStyle(fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          CustomButton(
+            text: 'Try Again',
+            onPressed: _loadDashboardData,
+            width: 200,
+          ),
+        ],
+      ),
     );
   }
 
@@ -129,116 +151,175 @@ class _AdminDashboardState extends State<AdminDashboard> {
     return RefreshIndicator(
       onRefresh: _loadDashboardData,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "Platform Overview",
+              'Platform Overview',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 24, 
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 16),
             
             // Stats Cards Row
-            _buildStatsRow(),
-            const SizedBox(height: 24),
+            SizedBox(
+              height: 120,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _buildStatCard(
+                    icon: Icons.people,
+                    iconColor: Colors.green,
+                    title: 'Total Users',
+                    value: _dashboardStats['totalUsers'].toString(),
+                    width: 180,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.verified_user,
+                    iconColor: Colors.orange,
+                    title: 'Pending Verifications',
+                    value: _dashboardStats['pendingVerifications'].toString(),
+                    width: 180,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.gavel,
+                    iconColor: Colors.blue,
+                    title: 'Pending Auctions',
+                    value: _dashboardStats['pendingAuctions'].toString(),
+                    width: 180,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.support_agent,
+                    iconColor: Colors.teal,
+                    title: 'Open Tickets',
+                    value: _dashboardStats['openTickets'].toString(),
+                    width: 180,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.report_problem,
+                    iconColor: Colors.red,
+                    title: 'Pending Reports',
+                    value: _dashboardStats['pendingReports'].toString(),
+                    width: 180,
+                  ),
+                ],
+              ),
+            ),
             
-            // Action Cards Section
+            const SizedBox(height: 32),
+            
             const Text(
-              "Quick Actions",
+              'Quick Actions',
               style: TextStyle(
-                fontSize: 20,
+                fontSize: 24, 
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 16),
             
-            // Action Cards Grid
-            _buildActionCardsGrid(),
+            // Quick Actions Grid
+            GridView.count(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                _buildActionCard(
+                  icon: Icons.people,
+                  iconColor: Colors.green,
+                  title: 'User Management',
+                  description: 'Manage users, roles, and permissions',
+                  onTap: () => _navigateToUserManagement(),
+                ),
+                _buildActionCard(
+                  icon: Icons.support_agent,
+                  iconColor: Colors.teal,
+                  title: 'CSR Management',
+                  description: 'Manage support staff and performance',
+                  onTap: () => _navigateToCSRManagement(),
+                ),
+                _buildActionCard(
+                  icon: Icons.gavel,
+                  iconColor: Colors.blue,
+                  title: 'Auction Approval',
+                  description: 'Review and approve auction listings',
+                  onTap: () => _navigateToAuctionApproval(),
+                ),
+                _buildActionCard(
+                  icon: Icons.settings,
+                  iconColor: Colors.purple,
+                  title: 'Platform Settings',
+                  description: 'Configure platform-wide settings',
+                  onTap: () => _navigateToPlatformSettings(),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 32),
+            
+            // Recent Activity Section (Placeholder)
+            const Text(
+              'Recent Activity',
+              style: TextStyle(
+                fontSize: 24, 
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildRecentActivityList(),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatsRow() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _buildStatCard(
-            title: "Total Users",
-            value: _dashboardStats['totalUsers'].toString(),
-            icon: Icons.people,
-            color: AppColors.primary,
-          ),
-          _buildStatCard(
-            title: "Pending Verifications",
-            value: _dashboardStats['pendingVerifications'].toString(),
-            icon: Icons.verified_user,
-            color: AppColors.warning,
-          ),
-          _buildStatCard(
-            title: "Pending Auctions",
-            value: _dashboardStats['pendingAuctions'].toString(),
-            icon: Icons.gavel,
-            color: AppColors.info,
-          ),
-          _buildStatCard(
-            title: "Open Tickets",
-            value: _dashboardStats['openTickets'].toString(),
-            icon: Icons.support_agent,
-            color: AppColors.accent,
-          ),
-          _buildStatCard(
-            title: "Pending Reports",
-            value: _dashboardStats['pendingReports'].toString(),
-            icon: Icons.report_problem,
-            color: AppColors.error,
-          ),
-        ],
       ),
     );
   }
 
   Widget _buildStatCard({
+    required IconData icon,
+    required Color iconColor,
     required String title,
     required String value,
-    required IconData icon,
-    required Color color,
+    double width = 160,
   }) {
-    return Card(
-      elevation: 3,
+    return Container(
+      width: width,
       margin: const EdgeInsets.only(right: 16),
-      child: Container(
-        width: 160,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Icon(icon, color: color, size: 28),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ],
+            Icon(icon, color: iconColor, size: 28),
+            const Spacer(),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
               title,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey[700],
+                color: Colors.grey[600],
               ),
             ),
           ],
@@ -247,146 +328,292 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildActionCardsGrid() {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: 1.5,
-      children: [
-        _buildActionCard(
-          title: "User Management",
-          description: "Manage users, roles, and permissions",
-          icon: Icons.manage_accounts,
-          color: AppColors.primary,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const AdminUserManagementScreen(),
-              ),
-            );
-          },
-        ),
-        _buildActionCard(
-          title: "CSR Management",
-          description: "Manage support staff and performance",
-          icon: Icons.support_agent,
-          color: AppColors.accent,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const AdminCsrManagementScreen(),
-              ),
-            );
-          },
-        ),
-        _buildActionCard(
-          title: "Content Moderation",
-          description: "Review and moderate platform content",
-          icon: Icons.content_paste,
-          color: AppColors.warning,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const AdminContentModerationScreen(),
-              ),
-            );
-          },
-        ),
-        _buildActionCard(
-          title: "Analytics",
-          description: "View platform metrics and reports",
-          icon: Icons.analytics,
-          color: AppColors.info,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const AdminAnalyticsScreen(),
-              ),
-            );
-          },
-        ),
-        _buildActionCard(
-          title: "System Configuration",
-          description: "Configure platform settings",
-          icon: Icons.settings,
-          color: AppColors.success,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const AdminSystemConfigScreen(),
-              ),
-            );
-          },
-        ),
-        _buildActionCard(
-          title: "Security",
-          description: "Manage security and audit logs",
-          icon: Icons.security,
-          color: AppColors.error,
-          onTap: () {
-            // Navigate to security page (to be implemented)
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Security module coming soon')),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
   Widget _buildActionCard({
+    required IconData icon,
+    required Color iconColor,
     required String title,
     required String description,
-    required IconData icon,
-    required Color color,
     required VoidCallback onTap,
   }) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: color.withOpacity(0.3), width: 1),
       ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: color, size: 32),
-              const SizedBox(height: 12),
+              Icon(icon, color: iconColor, size: 40),
+              const SizedBox(height: 16),
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Text(
                 description,
                 style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
+                  fontSize: 14,
+                  color: Colors.grey[700],
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildRecentActivityList() {
+    // This is a placeholder for recent activity
+    // You can replace this with actual data from your backend
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 5,
+        separatorBuilder: (context, index) => const Divider(),
+        itemBuilder: (context, index) {
+          String title;
+          String subtitle;
+          IconData icon;
+          Color iconColor;
+          
+          switch (index) {
+            case 0:
+              title = 'New user registered';
+              subtitle = '2 minutes ago';
+              icon = Icons.person_add;
+              iconColor = Colors.green;
+              break;
+            case 1:
+              title = 'Auction listing approved';
+              subtitle = '15 minutes ago';
+              icon = Icons.gavel;
+              iconColor = Colors.blue;
+              break;
+            case 2:
+              title = 'Support ticket resolved';
+              subtitle = '1 hour ago';
+              icon = Icons.check_circle;
+              iconColor = Colors.teal;
+              break;
+            case 3:
+              title = 'Seller verification approved';
+              subtitle = '3 hours ago';
+              icon = Icons.verified_user;
+              iconColor = Colors.orange;
+              break;
+            case 4:
+              title = 'Content report handled';
+              subtitle = '5 hours ago';
+              icon = Icons.report_problem;
+              iconColor = Colors.red;
+              break;
+            default:
+              title = 'Activity item';
+              subtitle = 'Time ago';
+              icon = Icons.info;
+              iconColor = Colors.grey;
+          }
+          
+          return ListTile(
+            leading: CircleAvatar(
+              backgroundColor: iconColor.withOpacity(0.2),
+              child: Icon(icon, color: iconColor),
+            ),
+            title: Text(title),
+            subtitle: Text(subtitle),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+            onTap: () {
+              // Navigate to specific activity detail
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildAdminDrawer() {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          DrawerHeader(
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor,
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.admin_panel_settings, size: 30, color: Colors.green),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  'Admin Panel',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'Kutanda Plant Auction',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.dashboard),
+            title: const Text('Dashboard'),
+            selected: true,
+            onTap: () {
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.people),
+            title: const Text('User Management'),
+            onTap: () {
+              Navigator.pop(context);
+              _navigateToUserManagement();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.support_agent),
+            title: const Text('CSR Management'),
+            onTap: () {
+              Navigator.pop(context);
+              _navigateToCSRManagement();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.gavel),
+            title: const Text('Auction Approval'),
+            onTap: () {
+              Navigator.pop(context);
+              _navigateToAuctionApproval();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.verified_user),
+            title: const Text('Seller Verification'),
+            onTap: () {
+              Navigator.pop(context);
+              _navigateToSellerVerification();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.report_problem),
+            title: const Text('Content Moderation'),
+            onTap: () {
+              Navigator.pop(context);
+              _navigateToContentModeration();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.analytics),
+            title: const Text('Analytics'),
+            onTap: () {
+              Navigator.pop(context);
+              _navigateToAnalytics();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('Platform Settings'),
+            onTap: () {
+              Navigator.pop(context);
+              _navigateToPlatformSettings();
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('Logout'),
+            onTap: () async {
+              Navigator.pop(context);
+              await Supabase.instance.client.auth.signOut();
+              await SessionService.clearSession();
+
+              if (!context.mounted) return;
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Navigation methods for each section
+  void _navigateToUserManagement() {
+    // Navigate to user management screen
+    // This is a placeholder and should be replaced with actual navigation
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('User Management feature coming soon')),
+    );
+  }
+
+  void _navigateToCSRManagement() {
+    // Navigate to CSR management screen
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('CSR Management feature coming soon')),
+    );
+  }
+
+  void _navigateToAuctionApproval() {
+    // Navigate to auction approval screen
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Auction Approval feature coming soon')),
+    );
+  }
+
+  void _navigateToSellerVerification() {
+    // Navigate to seller verification screen
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Seller Verification feature coming soon')),
+    );
+  }
+
+  void _navigateToContentModeration() {
+    // Navigate to content moderation screen
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Content Moderation feature coming soon')),
+    );
+  }
+
+  void _navigateToAnalytics() {
+    // Navigate to analytics screen
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Analytics feature coming soon')),
+    );
+  }
+
+  void _navigateToPlatformSettings() {
+    // Navigate to platform settings screen
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Platform Settings feature coming soon')),
     );
   }
 }

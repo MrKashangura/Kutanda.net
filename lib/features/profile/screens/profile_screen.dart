@@ -107,7 +107,7 @@ class ProfileScreenState extends State<ProfileScreen> {
       
       // Insert new profile record
       await _supabase.from('profiles').insert({
-        'id': user.id,
+        'uid': user.id,
         'email': email,
         'full_name': email?.split('@').first,
         'created_at': DateTime.now().toIso8601String(),

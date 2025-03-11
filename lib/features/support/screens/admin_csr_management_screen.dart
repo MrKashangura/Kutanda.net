@@ -276,8 +276,8 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: _createNewCsr,
-        child: const Icon(Icons.person_add),
         tooltip: "Add CSR",
+        child: const Icon(Icons.person_add),
       ),
     );
   }
@@ -424,7 +424,7 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
                           teamAverage: _teamAverage,
                         ),
                       ),
-                      ButtonBar(
+                      OverflowBar(
                         alignment: MainAxisAlignment.end,
                         children: [
                           TextButton.icon(
@@ -592,7 +592,7 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(

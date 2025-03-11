@@ -24,7 +24,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
   bool _showReportedOnly = false;
   bool _showSuspendedOnly = false;
   int _currentPage = 0;
-  int _pageSize = 20;
+  final int _pageSize = 20;
   List<bool> _selectedUsers = [];
   
   final List<String> _roleOptions = ['All', 'buyer', 'seller', 'csr', 'admin'];
@@ -245,8 +245,8 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
             const SnackBar(content: Text('User creation coming soon')),
           );
         },
-        child: const Icon(Icons.person_add),
         tooltip: "Add User",
+        child: const Icon(Icons.person_add),
       ),
     );
   }
@@ -363,7 +363,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
       child: Row(
         children: [
           Checkbox(

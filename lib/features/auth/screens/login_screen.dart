@@ -6,7 +6,10 @@ import 'package:provider/provider.dart';
 
 import '../../../providers/auth_provider.dart';
 import '../../../shared/widgets/custom_button.dart';
-import '../../profile/screens/profile_screen.dart';
+import '../../auctions/screens/buyer_dashboard.dart';
+import '../../auctions/screens/seller_dashboard.dart';
+import '../../support/screens/admin_dashboard.dart';
+import '../../support/screens/csr_dashboard.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -55,12 +58,27 @@ class LoginScreenState extends State<LoginScreen> {
           // Navigate to the appropriate screen based on role
           switch (authProvider.role) {
             case 'buyer':
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const BuyerDashboard()),
+              );
+              break;
             case 'seller':
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const SellerDashboard()),
+              );
+              break;
             case 'admin':
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const AdminDashboard()),
+              );
+              break;
             case 'csr':
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                MaterialPageRoute(builder: (context) => const CSRDashboard()),
               );
               break;
             default:
