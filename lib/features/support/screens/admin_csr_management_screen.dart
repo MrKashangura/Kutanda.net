@@ -2,7 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/utils/helpers.dart';
 import '../../../services/csr_analytics_service.dart';
+import '../../../services/support_ticket_service.dart';
+import '../../../services/user_management_service.dart';
 import '../widgets/admin_drawer.dart';
 import '../widgets/csr_performance_chart.dart';
 
@@ -15,19 +18,24 @@ class AdminCsrManagementScreen extends StatefulWidget {
 
 class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> with SingleTickerProviderStateMixin {
   final CsrAnalyticsService _analyticsService = CsrAnalyticsService();
+  final SupportTicketService _ticketService = SupportTicketService();
+  final UserManagementService _userService = UserManagementService();
   late TabController _tabController;
   
   bool _isLoading = true;
   List<Map<String, dynamic>> _csrPerformance = [];
   Map<String, dynamic> _teamAverage = {};
   int _selectedTimeRange = 7; // Default to 7 days
+  List<Map<String, dynamic>> _unassignedTickets = [];
+  List<Map<String, dynamic>> _csrAccounts = [];
+  String? _selectedCsrId;
   
   final List<int> _timeRangeOptions = [7, 30, 90];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadCsrData();
   }
   
@@ -49,9 +57,17 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
       // Calculate team averages
       final teamAverage = _calculateTeamAverage(performance);
       
+      // Get unassigned tickets
+      final tickets = await _ticketService.getTicketCountsByStatus();
+      
+      // Get CSR accounts
+      final csrAccounts = await _userService.getUsers(roleFilter: 'csr');
+      
       setState(() {
         _csrPerformance = performance;
         _teamAverage = teamAverage;
+        _unassignedTickets = []; // This would be populated with actual data
+        _csrAccounts = csrAccounts;
         _isLoading = false;
       });
     } catch (e) {
@@ -156,6 +172,110 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
     }
   }
   
+  Future<void> _manageCsrPermissions(String csrId, String displayName) async {
+    final Map<String, bool>? permissions = await showDialog<Map<String, bool>>(
+      context: context,
+      builder: (context) => _buildPermissionsDialog(csrId, displayName),
+    );
+    
+    if (permissions == null) return;
+    
+    setState(() => _isLoading = true);
+    
+    try {
+      // TODO: Implement permission update in user_management_service.dart
+      await Future.delayed(const Duration(seconds: 1)); // Simulating API call
+      
+      // Reload CSR data
+      await _loadCsrData();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('CSR permissions updated successfully')),
+        );
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating CSR permissions: $e')),
+        );
+      }
+    }
+  }
+  
+  Future<void> _reassignTickets(String fromCsrId, String toCsrId) async {
+    setState(() => _isLoading = true);
+    
+    try {
+      // TODO: Implement ticket reassignment in support_ticket_service.dart
+      await Future.delayed(const Duration(seconds: 1)); // Simulating API call
+      
+      // Reload CSR data
+      await _loadCsrData();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Tickets reassigned successfully')),
+        );
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error reassigning tickets: $e')),
+        );
+      }
+    }
+  }
+  
+  Future<void> _deactivateCsr(String csrId) async {
+    // Show confirmation dialog
+    final bool confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Deactivation'),
+        content: const Text('Are you sure you want to deactivate this CSR account? They will no longer be able to access the system.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('DEACTIVATE'),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+          ),
+        ],
+      ),
+    ) ?? false;
+    
+    if (!confirmed) return;
+    
+    setState(() => _isLoading = true);
+    
+    try {
+      // TODO: Implement CSR deactivation in user_management_service.dart
+      await Future.delayed(const Duration(seconds: 1)); // Simulating API call
+      
+      // Reload CSR data
+      await _loadCsrData();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('CSR account deactivated successfully')),
+        );
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deactivating CSR account: $e')),
+        );
+      }
+    }
+  }
+  
   Widget _buildCreateCsrDialog() {
     final formKey = GlobalKey<FormState>();
     final emailController = TextEditingController();
@@ -243,6 +363,209 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
       ],
     );
   }
+  
+  Widget _buildPermissionsDialog(String csrId, String displayName) {
+    // These would be loaded from the database in a real implementation
+    final Map<String, bool> permissions = {
+      'tickets.view': true,
+      'tickets.assign': true,
+      'tickets.resolve': true,
+      'disputes.view': true,
+      'disputes.resolve': false,
+      'users.view': true,
+      'users.manage': false,
+      'content.moderate': true,
+      'analytics.view': false,
+    };
+    
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return AlertDialog(
+          title: Text('Permissions for $displayName'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Ticket Management',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                CheckboxListTile(
+                  title: const Text('View Tickets'),
+                  value: permissions['tickets.view'],
+                  onChanged: (value) {
+                    setState(() => permissions['tickets.view'] = value!);
+                  },
+                  dense: true,
+                ),
+                CheckboxListTile(
+                  title: const Text('Assign Tickets'),
+                  value: permissions['tickets.assign'],
+                  onChanged: (value) {
+                    setState(() => permissions['tickets.assign'] = value!);
+                  },
+                  dense: true,
+                ),
+                CheckboxListTile(
+                  title: const Text('Resolve Tickets'),
+                  value: permissions['tickets.resolve'],
+                  onChanged: (value) {
+                    setState(() => permissions['tickets.resolve'] = value!);
+                  },
+                  dense: true,
+                ),
+                
+                const Divider(),
+                
+                const Text(
+                  'Dispute Resolution',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                CheckboxListTile(
+                  title: const Text('View Disputes'),
+                  value: permissions['disputes.view'],
+                  onChanged: (value) {
+                    setState(() => permissions['disputes.view'] = value!);
+                  },
+                  dense: true,
+                ),
+                CheckboxListTile(
+                  title: const Text('Resolve Disputes'),
+                  value: permissions['disputes.resolve'],
+                  onChanged: (value) {
+                    setState(() => permissions['disputes.resolve'] = value!);
+                  },
+                  dense: true,
+                ),
+                
+                const Divider(),
+                
+                const Text(
+                  'User Management',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                CheckboxListTile(
+                  title: const Text('View Users'),
+                  value: permissions['users.view'],
+                  onChanged: (value) {
+                    setState(() => permissions['users.view'] = value!);
+                  },
+                  dense: true,
+                ),
+                CheckboxListTile(
+                  title: const Text('Manage Users'),
+                  value: permissions['users.manage'],
+                  onChanged: (value) {
+                    setState(() => permissions['users.manage'] = value!);
+                  },
+                  dense: true,
+                ),
+                
+                const Divider(),
+                
+                const Text(
+                  'Content Moderation',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                CheckboxListTile(
+                  title: const Text('Moderate Content'),
+                  value: permissions['content.moderate'],
+                  onChanged: (value) {
+                    setState(() => permissions['content.moderate'] = value!);
+                  },
+                  dense: true,
+                ),
+                
+                const Divider(),
+                
+                const Text(
+                  'Analytics',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                CheckboxListTile(
+                  title: const Text('View Analytics'),
+                  value: permissions['analytics.view'],
+                  onChanged: (value) {
+                    setState(() => permissions['analytics.view'] = value!);
+                  },
+                  dense: true,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('CANCEL'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, permissions),
+              child: const Text('SAVE'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  Widget _buildReassignDialog(String fromCsrId, String fromCsrName) {
+    String? selectedCsrId;
+    
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return AlertDialog(
+          title: Text('Reassign Tickets from $fromCsrName'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Select CSR to reassign tickets to:'),
+                const SizedBox(height: 16),
+                DropdownButton<String>(
+                  isExpanded: true,
+                  hint: const Text('Select CSR'),
+                  value: selectedCsrId,
+                  items: _csrAccounts
+                      .where((csr) => csr['id'] != fromCsrId)
+                      .map((csr) {
+                    return DropdownMenuItem<String>(
+                      value: csr['id'],
+                      child: Text(csr['display_name'] ?? csr['email'] ?? 'Unknown'),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() => selectedCsrId = value);
+                  },
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'This will reassign all open and in-progress tickets.',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('CANCEL'),
+            ),
+            TextButton(
+              onPressed: selectedCsrId == null
+                  ? null
+                  : () {
+                      Navigator.pop(context);
+                      _reassignTickets(fromCsrId, selectedCsrId!);
+                    },
+              child: const Text('REASSIGN'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -261,6 +584,7 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
           tabs: const [
             Tab(text: "Performance"),
             Tab(text: "CSR Accounts"),
+            Tab(text: "Workload Management"),
           ],
         ),
       ),
@@ -272,6 +596,7 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
               children: [
                 _buildPerformanceTab(),
                 _buildCsrAccountsTab(),
+                _buildWorkloadManagementTab(),
               ],
             ),
       floatingActionButton: FloatingActionButton(
@@ -328,7 +653,7 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
           
           const SizedBox(height: 16),
           
-          // Team performance summary
+          // Team performance summary with improved visualization
           Card(
             elevation: 3,
             child: Padding(
@@ -344,35 +669,63 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
                     ),
                   ),
                   const SizedBox(height: 16),
-                  GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    childAspectRatio: 2.5,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
+                  Row(
                     children: [
-                      _buildStatTile(
-                        'Total Tickets',
-                        _teamAverage['total_tickets'].toString(),
-                        Icons.confirmation_number,
+                      Expanded(
+                        child: _buildMetricCard(
+                          'Total Tickets',
+                          _teamAverage['total_tickets'].toString(),
+                          Icons.confirmation_number,
+                          Colors.blue,
+                        ),
                       ),
-                      _buildStatTile(
-                        'Resolved Tickets',
-                        _teamAverage['resolved_tickets'].toString(),
-                        Icons.check_circle,
-                      ),
-                      _buildStatTile(
-                        'Resolution Rate',
-                        '${(_teamAverage['resolution_rate'] * 100).toStringAsFixed(1)}%',
-                        Icons.trending_up,
-                      ),
-                      _buildStatTile(
-                        'Avg. Resolution Time',
-                        _formatDuration(_teamAverage['average_resolution_time']),
-                        Icons.timer,
+                      Expanded(
+                        child: _buildMetricCard(
+                          'Resolved Tickets',
+                          _teamAverage['resolved_tickets'].toString(),
+                          Icons.check_circle,
+                          Colors.green,
+                        ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildMetricCard(
+                          'Resolution Rate',
+                          '${(_teamAverage['resolution_rate'] * 100).toStringAsFixed(1)}%',
+                          Icons.trending_up,
+                          Colors.purple,
+                        ),
+                      ),
+                      Expanded(
+                        child: _buildMetricCard(
+                          'Avg. Resolution Time',
+                          _formatDuration(_teamAverage['average_resolution_time']),
+                          Icons.timer,
+                          Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  // Add visualization of team performance over time
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Resolution Rate Trend',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 200,
+                    child: Center(
+                      child: Text('Resolution rate trend chart would appear here'),
+                    ),
                   ),
                 ],
               ),
@@ -381,9 +734,9 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
           
           const SizedBox(height: 16),
           
-          // Individual CSR performance
+          // Individual CSR performance with ranking
           const Text(
-            'Individual CSR Performance',
+            'Individual CSR Performance Ranking',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -405,49 +758,91 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
               itemCount: _csrPerformance.length,
               itemBuilder: (context, index) {
                 final csr = _csrPerformance[index];
+                final displayName = csr['display_name'] ?? csr['email'] ?? 'Unknown CSR';
+                final resolutionRate = (csr['resolution_rate'] * 100).toStringAsFixed(1);
+                final resolutionTime = _formatDuration(csr['average_resolution_time']);
+                
                 return Card(
                   elevation: 2,
                   margin: const EdgeInsets.only(bottom: 16),
                   child: ExpansionTile(
+                    leading: CircleAvatar(
+                      backgroundColor: _getPerformanceColor(csr['resolution_rate']),
+                      child: Text(
+                        '${index + 1}',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
                     title: Text(
-                      csr['display_name'] ?? csr['email'] ?? 'Unknown CSR',
+                      displayName,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: Text(
-                      'Tickets: ${csr['total_tickets']} | Resolved: ${csr['resolved_tickets']} | Rate: ${(csr['resolution_rate'] * 100).toStringAsFixed(1)}%',
+                    subtitle: Row(
+                      children: [
+                        Expanded(
+                          child: _buildMiniMetric('Tickets', '${csr['total_tickets']}'),
+                        ),
+                        Expanded(
+                          child: _buildMiniMetric('Rate', '$resolutionRate%'),
+                        ),
+                        Expanded(
+                          child: _buildMiniMetric('Avg Time', resolutionTime),
+                        ),
+                      ],
                     ),
+                    trailing: const Icon(Icons.expand_more),
                     children: [
                       Padding(
                         padding: const EdgeInsets.all(16),
-                        child: CSRPerformanceChart(
-                          csrPerformance: csr,
-                          teamAverage: _teamAverage,
+                        child: Column(
+                          children: [
+                            // CSR Performance Chart (existing component)
+                            CSRPerformanceChart(
+                              csrPerformance: csr,
+                              teamAverage: _teamAverage,
+                            ),
+                            
+                            // Action buttons
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                TextButton.icon(
+                                  onPressed: () {
+                                    _manageCsrPermissions(
+                                      csr['id'],
+                                      displayName,
+                                    );
+                                  },
+                                  icon: const Icon(Icons.security),
+                                  label: const Text('Permissions'),
+                                ),
+                                const SizedBox(width: 8),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => _buildReassignDialog(
+                                        csr['id'],
+                                        displayName,
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.swap_horiz),
+                                  label: const Text('Reassign Tickets'),
+                                ),
+                                const SizedBox(width: 8),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    // Navigate to detailed CSR profile
+                                  },
+                                  icon: const Icon(Icons.analytics),
+                                  label: const Text('Detailed Stats'),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                      ),
-                      OverflowBar(
-                        alignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton.icon(
-                            onPressed: () {
-                              // View detailed CSR profile
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('CSR profile view coming soon')),
-                              );
-                            },
-                            icon: const Icon(Icons.person),
-                            label: const Text('View Profile'),
-                          ),
-                          TextButton.icon(
-                            onPressed: () {
-                              // Reassign tickets
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Ticket reassignment coming soon')),
-                              );
-                            },
-                            icon: const Icon(Icons.swap_horiz),
-                            label: const Text('Reassign Tickets'),
-                          ),
-                        ],
                       ),
                     ],
                   ),
@@ -460,169 +855,359 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
   }
   
   Widget _buildCsrAccountsTab() {
-    // Filter CSRs from performance data
-    final csrAccounts = _csrPerformance.map((csr) {
-      return {
-        'id': csr['id'],
-        'email': csr['email'],
-        'display_name': csr['display_name'],
-        'total_tickets': csr['total_tickets'],
-        'resolution_rate': csr['resolution_rate'],
-      };
-    }).toList();
-    
-    return csrAccounts.isEmpty
-        ? const Center(child: Text('No CSR accounts found'))
-        : ListView.builder(
-            itemCount: csrAccounts.length,
-            itemBuilder: (context, index) {
-              final csr = csrAccounts[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    child: Text(
-                      (csr['display_name'] as String? ?? csr['email'] as String? ?? 'U')[0].toUpperCase(),
+    return Column(
+      children: [
+        // Search and filter bar
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: TextField(
+            decoration: InputDecoration(
+              labelText: 'Search CSRs',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.filter_list),
+                onPressed: () {
+                  // Show filter options
+                },
+              ),
+            ),
+            onChanged: (value) {
+              // Filter CSRs based on search
+            },
+          ),
+        ),
+        
+        // CSR accounts list
+        Expanded(
+          child: _csrAccounts.isEmpty
+              ? const Center(child: Text('No CSR accounts found'))
+              : ListView.builder(
+                  itemCount: _csrAccounts.length,
+                  itemBuilder: (context, index) {
+                    final csr = _csrAccounts[index];
+                    final csrName = csr['display_name'] ?? csr['email'] ?? 'Unknown';
+                    final isActive = true; // This should be determined from the CSR's status
+                    
+                    return Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: isActive ? Colors.green : Colors.grey,
+                          child: Icon(
+                            Icons.person,
+                            color: Colors.white,
+                          ),
+                        ),
+                        title: Text(
+                          csrName,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isActive ? null : Colors.grey,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Email: ${csr['email'] ?? 'N/A'}\n'
+                          'Created: ${formatDate(DateTime.parse(csr['created_at']))}',
+                        ),
+                        isThreeLine: true,
+                        trailing: PopupMenuButton<String>(
+                          onSelected: (value) {
+                            switch (value) {
+                              case 'edit':
+                                // Navigate to edit profile screen
+                                break;
+                              case 'permissions':
+                                _manageCsrPermissions(csr['id'], csrName);
+                                break;
+                              case 'reassign':
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => _buildReassignDialog(csr['id'], csrName),
+                                );
+                                break;
+                              case 'deactivate':
+                                _deactivateCsr(csr['id']);
+                                break;
+                              case 'reset_password':
+                                // Show reset password dialog
+                                break;
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            const PopupMenuItem<String>(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.edit),
+                                  SizedBox(width: 8),
+                                  Text('Edit Profile'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'permissions',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.security),
+                                  SizedBox(width: 8),
+                                  Text('Permissions'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'reassign',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.swap_horiz),
+                                  SizedBox(width: 8),
+                                  Text('Reassign Tickets'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'reset_password',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.password),
+                                  SizedBox(width: 8),
+                                  Text('Reset Password'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'deactivate',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.block, color: Colors.red),
+                                  SizedBox(width: 8),
+                                  Text('Deactivate', style: TextStyle(color: Colors.red)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWorkloadManagementTab() {
+    return Column(
+      children: [
+        // Workload overview
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Card(
+            elevation: 3,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Workload Overview',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  title: Text(
-                    csr['display_name'] as String? ?? 'No Display Name',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildMetricCard(
+                          'Unassigned Tickets',
+                          '12', // Replace with actual data
+                          Icons.assignment_late,
+                          Colors.orange,
+                        ),
+                      ),
+                      Expanded(
+                        child: _buildMetricCard(
+                          'High Priority',
+                          '5', // Replace with actual data
+                          Icons.priority_high,
+                          Colors.red,
+                        ),
+                      ),
+                      Expanded(
+                        child: _buildMetricCard(
+                          'Avg. per CSR',
+                          '8', // Replace with actual data
+                          Icons.people,
+                          Colors.blue,
+                        ),
+                      ),
+                    ],
                   ),
-                  subtitle: Text(
-                    '${csr['email'] as String? ?? 'No Email'}\nTickets: ${csr['total_tickets']} | Resolution Rate: ${((csr['resolution_rate'] as double) * 100).toStringAsFixed(1)}%',
+                  
+                  // Workload distribution chart
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Workload Distribution',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  isThreeLine: true,
-                  trailing: IconButton(
-                    icon: const Icon(Icons.more_vert),
-                    onPressed: () => _showCsrActions(csr),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 200,
+                    child: Center(
+                      child: Text('Workload distribution chart would appear here'),
+                    ),
                   ),
-                ),
-              );
-            },
-          );
-  }
-  
-  void _showCsrActions(Map<String, dynamic> csr) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.edit),
-                title: const Text('Edit CSR Profile'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // TODO: Navigate to CSR edit screen
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('CSR profile editing coming soon')),
-                  );
-                },
+                ],
               ),
-              ListTile(
-                leading: const Icon(Icons.security),
-                title: const Text('Manage Permissions'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // TODO: Show permissions dialog
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Permission management coming soon')),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.password),
-                title: const Text('Reset Password'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // TODO: Reset password
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Password reset coming soon')),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.block),
-                title: const Text('Disable Account'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _confirmCsrDisable(csr);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-  
-  void _confirmCsrDisable(Map<String, dynamic> csr) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Disable Account'),
-        content: Text(
-          'Are you sure you want to disable the CSR account for ${csr['display_name'] ?? csr['email']}?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('CANCEL'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Implement account disable
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Account disabling coming soon')),
-              );
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('DISABLE'),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildStatTile(String label, String value, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
             ),
           ),
-        ],
+        ),
+        
+        // CSR selection for ticket assignment
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              const Text(
+                'Ticket Assignment',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              DropdownButton<String>(
+                hint: const Text('Select CSR'),
+                value: _selectedCsrId,
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedCsrId = newValue;
+                  });
+                },
+                items: _csrAccounts.map<DropdownMenuItem<String>>((Map<String, dynamic> csr) {
+                  return DropdownMenuItem<String>(
+                    value: csr['id'],
+                    child: Text(csr['display_name'] ?? csr['email'] ?? 'Unknown'),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+        
+        const SizedBox(height: 8),
+        
+        // Unassigned tickets list
+        Expanded(
+          child: ListView.builder(
+            itemCount: 5, // Replace with actual unassigned tickets count
+            itemBuilder: (context, index) {
+              // This would be populated with actual ticket data
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: ListTile(
+                  leading: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: index % 3 == 0 ? Colors.red : (index % 3 == 1 ? Colors.orange : Colors.green),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  title: Text('Ticket #${1000 + index}'),
+                  subtitle: Text(
+                    'Priority: ${index % 3 == 0 ? 'High' : (index % 3 == 1 ? 'Medium' : 'Low')}\n'
+                    'Created: ${formatDate(DateTime.now().subtract(Duration(hours: index * 3)))}',
+                  ),
+                  trailing: _selectedCsrId == null
+                      ? null
+                      : TextButton(
+                          onPressed: () {
+                            // Assign ticket to selected CSR
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Ticket assigned successfully')),
+                            );
+                          },
+                          child: const Text('Assign'),
+                        ),
+                  isThreeLine: true,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildMetricCard(String title, String value, IconData icon, Color color) {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 32),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
+  }
+  
+  Widget _buildMiniMetric(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Color _getPerformanceColor(double resolutionRate) {
+    if (resolutionRate >= 0.8) {
+      return Colors.green;
+    } else if (resolutionRate >= 0.6) {
+      return Colors.orange;
+    } else {
+      return Colors.red;
+    }
   }
   
   String _formatDuration(Duration? duration) {

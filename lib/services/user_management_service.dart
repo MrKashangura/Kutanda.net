@@ -484,4 +484,237 @@ class UserManagementService {
       return {};
     }
   }
+  
+  /// Get CSR permissions
+  Future<Map<String, bool>> getCsrPermissions(String csrId) async {
+    try {
+      final response = await _supabase
+          .from('csr_permissions')
+          .select('*')
+          .eq('user_id', csrId)
+          .maybeSingle();
+      
+      if (response == null) {
+        // Return default permissions if none exist
+        return {
+          'tickets.view': true,
+          'tickets.assign': true,
+          'tickets.resolve': true,
+          'disputes.view': true,
+          'disputes.resolve': false,
+          'users.view': true,
+          'users.manage': false,
+          'content.moderate': true,
+          'analytics.view': false,
+        };
+      }
+      
+      // Extract permissions from the database response
+      Map<String, bool> permissions = {};
+      
+      // Remove the id and user_id from the response
+      final permissionMap = Map<String, dynamic>.from(response);
+      permissionMap.remove('id');
+      permissionMap.remove('user_id');
+      
+      // Convert to Map<String, bool>
+      permissionMap.forEach((key, value) {
+        permissions[key] = value as bool;
+      });
+      
+      return permissions;
+    } catch (e, stackTrace) {
+      log('❌ Error getting CSR permissions: $e', error: e, stackTrace: stackTrace);
+      
+      // Return default permissions on error
+      return {
+        'tickets.view': true,
+        'tickets.assign': true,
+        'tickets.resolve': true,
+        'disputes.view': true,
+        'disputes.resolve': false,
+        'users.view': true,
+        'users.manage': false,
+        'content.moderate': true,
+        'analytics.view': false,
+      };
+    }
+  }
+  
+  /// Update CSR permissions
+  Future<bool> updateCsrPermissions(String csrId, Map<String, bool> permissions) async {
+    try {
+      // Add the user_id to the permissions map
+      final permissionsData = {
+        'user_id': csrId,
+        ...permissions,
+      };
+      
+      // Check if permissions already exist
+      final existingPermissions = await _supabase
+          .from('csr_permissions')
+          .select('id')
+          .eq('user_id', csrId)
+          .maybeSingle();
+      
+      if (existingPermissions != null) {
+        // Update existing permissions
+        await _supabase
+            .from('csr_permissions')
+            .update(permissionsData)
+            .eq('user_id', csrId);
+      } else {
+        // Insert new permissions
+        await _supabase
+            .from('csr_permissions')
+            .insert(permissionsData);
+      }
+      
+      log('✅ CSR permissions updated: $csrId');
+      return true;
+    } catch (e, stackTrace) {
+      log('❌ Error updating CSR permissions: $e', error: e, stackTrace: stackTrace);
+      return false;
+    }
+  }
+  
+  /// Deactivate a CSR account
+  Future<bool> deactivateCsrAccount(String csrId, String adminId, String reason) async {
+    try {
+      // Update the user record
+      await _supabase
+          .from('users')
+          .update({
+            'is_active': false,
+            'deactivated_by': adminId,
+            'deactivation_reason': reason,
+            'deactivated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', csrId)
+          .eq('role', 'csr');
+      
+      // Add to user action history
+      await _supabase
+          .from('user_action_history')
+          .insert({
+            'user_id': csrId,
+            'action_by': adminId,
+            'action_type': 'deactivate',
+            'reason': reason,
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+      
+      log('✅ CSR account deactivated: $csrId');
+      return true;
+    } catch (e, stackTrace) {
+      log('❌ Error deactivating CSR account: $e', error: e, stackTrace: stackTrace);
+      return false;
+    }
+  }
+  
+  /// Reactivate a CSR account
+  Future<bool> reactivateCsrAccount(String csrId, String adminId, String reason) async {
+    try {
+      // Update the user record
+      await _supabase
+          .from('users')
+          .update({
+            'is_active': true,
+            'reactivated_by': adminId,
+            'reactivation_reason': reason,
+            'reactivated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', csrId)
+          .eq('role', 'csr');
+      
+      // Add to user action history
+      await _supabase
+          .from('user_action_history')
+          .insert({
+            'user_id': csrId,
+            'action_by': adminId,
+            'action_type': 'reactivate',
+            'reason': reason,
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+      
+      log('✅ CSR account reactivated: $csrId');
+      return true;
+    } catch (e, stackTrace) {
+      log('❌ Error reactivating CSR account: $e', error: e, stackTrace: stackTrace);
+      return false;
+    }
+  }
+  
+  /// Create a new CSR account
+  Future<Map<String, dynamic>?> createCsrAccount(
+    String email,
+    String displayName,
+    String password,
+    String adminId
+  ) async {
+    try {
+      // Create the auth account
+      final AuthResponse response = await _supabase.auth.signUp(
+        email: email,
+        password: password,
+      );
+      
+      if (response.user == null) {
+        throw Exception('Failed to create auth account');
+      }
+      
+      final userId = response.user!.id;
+      
+      // Create the user record
+      await _supabase
+          .from('users')
+          .insert({
+            'id': userId,
+            'email': email,
+            'display_name': displayName,
+            'role': 'csr',
+            'is_active': true,
+            'created_by': adminId,
+            'created_at': DateTime.now().toIso8601String(),
+          });
+      
+      // Set default permissions
+      await updateCsrPermissions(userId, {
+        'tickets.view': true,
+        'tickets.assign': true,
+        'tickets.resolve': true,
+        'disputes.view': true,
+        'disputes.resolve': false,
+        'users.view': true,
+        'users.manage': false,
+        'content.moderate': true,
+        'analytics.view': false,
+      });
+      
+      // Add to user action history
+      await _supabase
+          .from('user_action_history')
+          .insert({
+            'user_id': userId,
+            'action_by': adminId,
+            'action_type': 'create',
+            'reason': 'New CSR account creation',
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+      
+      log('✅ CSR account created: $userId');
+      
+      // Return the new user info
+      return {
+        'id': userId,
+        'email': email,
+        'display_name': displayName,
+        'role': 'csr',
+      };
+    } catch (e, stackTrace) {
+      log('❌ Error creating CSR account: $e', error: e, stackTrace: stackTrace);
+      return null;
+    }
+  }
 }

@@ -627,4 +627,256 @@ class SupportTicketService {
       return {};
     }
   }
+  
+  /// Reassign tickets from one CSR to another
+  Future<int> reassignTickets(String fromCsrId, String toCsrId) async {
+    try {
+      // Only reassign open and in-progress tickets
+      final result = await _supabase
+          .from('support_tickets')
+          .update({
+            'assigned_csr_id': toCsrId,
+            'last_updated': DateTime.now().toIso8601String()
+          })
+          .eq('assigned_csr_id', fromCsrId)
+          .in_('status', [
+            TicketStatus.open.toString().split('.').last,
+            TicketStatus.inProgress.toString().split('.').last,
+          ]);
+      
+      // For Supabase, count the affected rows
+      int reassignedCount = result.length;  // This might need adjustment based on the actual return value
+      
+      log('✅ Reassigned $reassignedCount tickets from $fromCsrId to $toCsrId');
+      return reassignedCount;
+    } catch (e, stackTrace) {
+      log('❌ Error reassigning tickets: $e', error: e, stackTrace: stackTrace);
+      return 0;
+    }
+  }
+  
+  /// Batch assign tickets to a CSR
+  Future<int> batchAssignTickets(List<String> ticketIds, String csrId) async {
+    try {
+      if (ticketIds.isEmpty) {
+        return 0;
+      }
+      
+      // Update all tickets in the list
+      final result = await _supabase
+          .from('support_tickets')
+          .update({
+            'assigned_csr_id': csrId,
+            'status': TicketStatus.inProgress.toString().split('.').last,
+            'last_updated': DateTime.now().toIso8601String()
+          })
+          .in_('id', ticketIds);
+      
+      int assignedCount = ticketIds.length;  // This might need adjustment based on actual return
+      
+      log('✅ Batch assigned $assignedCount tickets to CSR: $csrId');
+      return assignedCount;
+    } catch (e, stackTrace) {
+      log('❌ Error batch assigning tickets: $e', error: e, stackTrace: stackTrace);
+      return 0;
+    }
+  }
+  
+  /// Get unassigned tickets
+  Future<List<Map<String, dynamic>>> getUnassignedTickets({
+    TicketPriority? priorityFilter,
+    int limit = 20,
+  }) async {
+    try {
+      PostgrestFilterBuilder query = _supabase
+          .from('support_tickets')
+          .select('*, users:user_id(email, display_name)')
+          .is_('assigned_csr_id', null)
+          .eq('status', TicketStatus.open.toString().split('.').last);
+      
+      // Apply priority filter if provided
+      if (priorityFilter != null) {
+        query = query.eq('priority', priorityFilter.toString().split('.').last);
+      }
+      
+      // Apply ordering and limit
+      final tickets = await query
+          .order('created_at', ascending: false)
+          .limit(limit);
+      
+      return List<Map<String, dynamic>>.from(tickets);
+    } catch (e, stackTrace) {
+      log('❌ Error getting unassigned tickets: $e', error: e, stackTrace: stackTrace);
+      return [];
+    }
+  }
+  
+  /// Get CSR workload metrics
+  Future<List<Map<String, dynamic>>> getCsrWorkloadMetrics() async {
+    try {
+      // Get all CSRs
+      final csrs = await _supabase
+          .from('users')
+          .select('id, email, display_name')
+          .eq('role', 'csr');
+      
+      List<Map<String, dynamic>> workloadMetrics = [];
+      
+      // For each CSR, count their tickets by status
+      for (final csr in csrs) {
+        final csrId = csr['id'] as String;
+        
+        // Get ticket counts by status
+        final tickets = await _supabase
+            .from('support_tickets')
+            .select('status')
+            .eq('assigned_csr_id', csrId);
+        
+        // Count tickets by status
+        Map<String, int> statusCounts = {
+          'open': 0,
+          'inProgress': 0, 
+          'pendingUser': 0,
+          'resolved': 0,
+          'closed': 0,
+        };
+        
+        for (final ticket in tickets) {
+          final status = ticket['status'] as String;
+          statusCounts[status] = (statusCounts[status] ?? 0) + 1;
+        }
+        
+        // Calculate active tickets (open + inProgress + pendingUser)
+        int activeTickets = statusCounts['open']! + 
+                           statusCounts['inProgress']! + 
+                           statusCounts['pendingUser']!;
+        
+        // Add CSR workload metrics
+        workloadMetrics.add({
+          'id': csrId,
+          'email': csr['email'],
+          'display_name': csr['display_name'],
+          'total_tickets': tickets.length,
+          'active_tickets': activeTickets,
+          'status_counts': statusCounts,
+        });
+      }
+      
+      // Sort by active tickets count (descending)
+      workloadMetrics.sort((a, b) => 
+        (b['active_tickets'] as int).compareTo(a['active_tickets'] as int));
+      
+      return workloadMetrics;
+    } catch (e, stackTrace) {
+      log('❌ Error getting CSR workload metrics: $e', error: e, stackTrace: stackTrace);
+      return [];
+    }
+  }
+  
+  /// Get CSR performance trends (resolution rates over time)
+  Future<Map<String, List<Map<String, dynamic>>>> getCsrPerformanceTrends({
+    List<String>? csrIds,
+    int days = 30
+  }) async {
+    try {
+      // Get all CSRs if not specified
+      List<Map<String, dynamic>> csrs;
+      if (csrIds == null || csrIds.isEmpty) {
+        csrs = await _supabase
+            .from('users')
+            .select('id, email, display_name')
+            .eq('role', 'csr');
+      } else {
+        csrs = await _supabase
+            .from('users')
+            .select('id, email, display_name')
+            .in_('id', csrIds);
+      }
+      
+      Map<String, List<Map<String, dynamic>>> trends = {};
+      
+      // For each CSR, calculate weekly performance metrics
+      for (final csr in csrs) {
+        final csrId = csr['id'] as String;
+        final csrName = csr['display_name'] ?? csr['email'] ?? 'Unknown';
+        
+        // Calculate start date
+        final endDate = DateTime.now();
+        final startDate = endDate.subtract(Duration(days: days));
+        
+        // Get all resolved tickets in the date range
+        final tickets = await _supabase
+            .from('support_tickets')
+            .select('id, created_at, last_updated, status')
+            .eq('assigned_csr_id', csrId)
+            .gte('created_at', startDate.toIso8601String())
+            .lte('created_at', endDate.toIso8601String());
+        
+        // Group tickets by week
+        Map<String, List<Map<String, dynamic>>> ticketsByWeek = {};
+        
+        for (final ticket in tickets) {
+          final createdAt = DateTime.parse(ticket['created_at']);
+          // Get the start of the week (Monday)
+          final weekStart = createdAt.subtract(Duration(days: createdAt.weekday - 1));
+          final weekKey = weekStart.toIso8601String().split('T')[0];
+          
+          if (!ticketsByWeek.containsKey(weekKey)) {
+            ticketsByWeek[weekKey] = [];
+          }
+          
+          ticketsByWeek[weekKey]!.add(ticket);
+        }
+        
+        // Calculate weekly performance metrics
+        List<Map<String, dynamic>> csrTrend = [];
+        
+        ticketsByWeek.forEach((weekStart, weekTickets) {
+          int totalTickets = weekTickets.length;
+          int resolvedTickets = weekTickets.where((t) => 
+            t['status'] == TicketStatus.resolved.toString().split('.').last ||
+            t['status'] == TicketStatus.closed.toString().split('.').last
+          ).length;
+          
+          double resolutionRate = totalTickets > 0 ? resolvedTickets / totalTickets : 0;
+          
+          // Calculate average resolution time for resolved tickets
+          int totalResolutionMilliseconds = 0;
+          int resolvedCount = 0;
+          
+          for (final ticket in weekTickets) {
+            if (ticket['status'] == TicketStatus.resolved.toString().split('.').last &&
+                ticket['last_updated'] != null) {
+              final createdAt = DateTime.parse(ticket['created_at']);
+              final resolvedAt = DateTime.parse(ticket['last_updated']);
+              totalResolutionMilliseconds += resolvedAt.difference(createdAt).inMilliseconds;
+              resolvedCount++;
+            }
+          }
+          
+          Duration? averageResolutionTime = resolvedCount > 0 
+              ? Duration(milliseconds: totalResolutionMilliseconds ~/ resolvedCount)
+              : null;
+          
+          csrTrend.add({
+            'week_start': weekStart,
+            'total_tickets': totalTickets,
+            'resolved_tickets': resolvedTickets,
+            'resolution_rate': resolutionRate,
+            'average_resolution_time': averageResolutionTime,
+          });
+        });
+        
+        // Sort by week
+        csrTrend.sort((a, b) => a['week_start'].compareTo(b['week_start']));
+        
+        trends[csrId] = csrTrend;
+      }
+      
+      return trends;
+    } catch (e, stackTrace) {
+      log('❌ Error getting CSR performance trends: $e', error: e, stackTrace: stackTrace);
+      return {};
+    }
+  }
 }
