@@ -746,11 +746,10 @@ class CsrAnalyticsService {
       csrWorkloads.sort((a, b) => 
         (b['active_tickets'] as int).compareTo(a['active_tickets'] as int));
       
-      // Count unassigned tickets
       final unassignedTicketsResult = await _supabase
           .from('support_tickets')
           .select('id')
-          .isNull('assigned_csr_id');
+          .isFilter('assigned_csr_id', null);
       
       // Fixed: Using length instead of count
       final unassignedTickets = unassignedTicketsResult.length;

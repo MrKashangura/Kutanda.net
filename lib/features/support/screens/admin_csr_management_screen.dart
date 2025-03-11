@@ -243,8 +243,8 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('DEACTIVATE'),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('DEACTIVATE'),
           ),
         ],
       ),

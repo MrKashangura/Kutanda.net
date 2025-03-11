@@ -670,7 +670,7 @@ class SupportTicketService {
             'status': TicketStatus.inProgress.toString().split('.').last,
             'last_updated': DateTime.now().toIso8601String()
           })
-          .in_('id', ticketIds);
+          .inFilter('id', ticketIds);
       
       int assignedCount = ticketIds.length;  // This might need adjustment based on actual return
       
@@ -691,7 +691,7 @@ class SupportTicketService {
       PostgrestFilterBuilder query = _supabase
           .from('support_tickets')
           .select('*, users:user_id(email, display_name)')
-          .is_('assigned_csr_id', null)
+          .inFilter('assigned_csr_id', [null, ''])
           .eq('status', TicketStatus.open.toString().split('.').last);
       
       // Apply priority filter if provided
@@ -790,7 +790,7 @@ class SupportTicketService {
         csrs = await _supabase
             .from('users')
             .select('id, email, display_name')
-            .in_('id', csrIds);
+            .inFilter('id', csrIds);
       }
       
       Map<String, List<Map<String, dynamic>>> trends = {};

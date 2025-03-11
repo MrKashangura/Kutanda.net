@@ -1,4 +1,6 @@
 // lib/features/support/screens/admin_analytics_screen.dart
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 
 import '../../../services/content_moderation_service.dart';
