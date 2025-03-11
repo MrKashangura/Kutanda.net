@@ -639,7 +639,7 @@ class SupportTicketService {
             'last_updated': DateTime.now().toIso8601String()
           })
           .eq('assigned_csr_id', fromCsrId)
-          .in_('status', [
+          .inFilter('status', [
             TicketStatus.open.toString().split('.').last,
             TicketStatus.inProgress.toString().split('.').last,
           ]);

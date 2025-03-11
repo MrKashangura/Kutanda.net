@@ -539,7 +539,7 @@ class CsrAnalyticsService {
         csrs = await _supabase
             .from('users')
             .select('id, email, display_name')
-            .in_('id', csrIds);
+            .filter('id', 'in', csrIds);  // Using filter with 'in' operator for list of values
       }
       
       // Calculate start and end dates
@@ -706,19 +706,23 @@ class CsrAnalyticsService {
         final csrId = csr['id'] as String;
         
         // Count active tickets (open, inProgress, pendingUser)
-        final activeTickets = await _supabase
+        final activeTicketsResult = await _supabase
             .from('support_tickets')
             .select('id')
             .eq('assigned_csr_id', csrId)
-            .in_('status', ['open', 'inProgress', 'pendingUser'])
-            .count();
+            .inFilter('status', ['open', 'inProgress', 'pendingUser']);
+        
+        // Fixed: Using length instead of count
+        final activeTickets = activeTicketsResult.length;
         
         // Count all tickets
-        final allTickets = await _supabase
+        final allTicketsResult = await _supabase
             .from('support_tickets')
             .select('id')
-            .eq('assigned_csr_id', csrId)
-            .count();
+            .eq('assigned_csr_id', csrId);
+        
+        // Fixed: Using length instead of count
+        final allTickets = allTicketsResult.length;
         
         csrWorkloads.add({
           'id': csrId,
@@ -735,7 +739,7 @@ class CsrAnalyticsService {
       for (final workload in csrWorkloads) {
         workload['workload_percentage'] = totalActiveTickets > 0 
             ? (workload['active_tickets'] as int) / totalActiveTickets 
-            : 0;
+            : 0.0;  // Fixed: Ensuring this is a double, not trying to assign to int
       }
       
       // Sort by active tickets (descending)
@@ -743,11 +747,13 @@ class CsrAnalyticsService {
         (b['active_tickets'] as int).compareTo(a['active_tickets'] as int));
       
       // Count unassigned tickets
-      final unassignedTickets = await _supabase
+      final unassignedTicketsResult = await _supabase
           .from('support_tickets')
           .select('id')
-          .is_('assigned_csr_id', null)
-          .count();
+          .isNull('assigned_csr_id');
+      
+      // Fixed: Using length instead of count
+      final unassignedTickets = unassignedTicketsResult.length;
       
       return {
         'csr_workloads': csrWorkloads,
