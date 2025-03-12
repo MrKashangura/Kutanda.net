@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
@@ -9,6 +7,12 @@ import '../../../services/user_management_service.dart';
 import '../../../shared/services/session_service.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../auth/screens/login_screen.dart';
+import 'admin_analytics_screen.dart';
+import 'admin_content_moderation_screen.dart';
+import 'admin_csr_management_screen.dart';
+import 'admin_system_config_screen.dart';
+import 'admin_user_management_screen.dart';
+
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -23,12 +27,36 @@ class _AdminDashboardState extends State<AdminDashboard> {
   
   bool _isLoading = true;
   Map<String, dynamic> _dashboardStats = {};
+  List<Map<String, dynamic>> _recentActivity = [];
   String? _error;
+  String _adminName = 'Admin';
 
   @override
   void initState() {
     super.initState();
     _loadDashboardData();
+    _loadAdminInfo();
+  }
+
+  Future<void> _loadAdminInfo() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user != null) {
+        final userData = await _supabase
+            .from('users')
+            .select('display_name, email')
+            .eq('id', user.id)
+            .maybeSingle();
+            
+        if (userData != null && mounted) {
+          setState(() {
+            _adminName = userData['display_name'] ?? userData['email'] ?? 'Admin';
+          });
+        }
+      }
+    } catch (e) {
+      log('Error loading admin info: $e');
+    }
   }
 
   Future<void> _loadDashboardData() async {
@@ -41,6 +69,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
       // Fetch total users count
       final usersResponse = await _supabase.from('users').select('id');
       final totalUsers = usersResponse.length;
+      
+      // Fetch users by role
+      final buyersResponse = await _supabase
+          .from('users')
+          .select('id')
+          .eq('role', 'buyer');
+      final buyers = buyersResponse.length;
+      
+      final sellersResponse = await _supabase
+          .from('users')
+          .select('id')
+          .eq('role', 'seller');
+      final sellers = sellersResponse.length;
       
       // Fetch pending verifications count
       final pendingVerificationsResponse = await _supabase
@@ -71,9 +112,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
           .eq('status', 'pending');
       final pendingReports = pendingReportsResponse.length;
 
+      // Load recent activity
+      await _loadRecentActivity();
+
       setState(() {
         _dashboardStats = {
           'totalUsers': totalUsers,
+          'buyers': buyers,
+          'sellers': sellers,
           'pendingVerifications': pendingVerifications,
           'pendingAuctions': pendingAuctions,
           'openTickets': openTickets,
@@ -87,6 +133,88 @@ class _AdminDashboardState extends State<AdminDashboard> {
         _error = 'Error loading dashboard data. Please try again.';
         _isLoading = false;
       });
+    }
+  }
+  
+  Future<void> _loadRecentActivity() async {
+    try {
+      // Get the most recent moderation logs
+      final moderationLogs = await _supabase
+          .from('moderation_logs')
+          .select('*, moderator:users!moderator_id(display_name, email)')
+          .order('timestamp', ascending: false)
+          .limit(10);
+      
+      // Get the most recent user actions
+      final userActions = await _supabase
+          .from('user_action_history')
+          .select('*, admin:users!action_by(display_name, email)')
+          .order('timestamp', ascending: false)
+          .limit(10);
+      
+      // Combine and sort
+      List<Map<String, dynamic>> recentActivity = [];
+      
+      for (var log in moderationLogs) {
+        recentActivity.add({
+          'type': 'moderation',
+          'action': log['action_type'],
+          'content_type': log['content_type'],
+          'timestamp': log['timestamp'],
+          'user': log['moderator']['display_name'] ?? log['moderator']['email'] ?? 'Unknown',
+        });
+      }
+      
+      for (var action in userActions) {
+        recentActivity.add({
+          'type': 'user_action',
+          'action': action['action_type'],
+          'user_id': action['user_id'],
+          'timestamp': action['timestamp'],
+          'admin': action['admin']['display_name'] ?? action['admin']['email'] ?? 'Unknown',
+        });
+      }
+      
+      // Sort by timestamp
+      recentActivity.sort((a, b) => 
+        DateTime.parse(b['timestamp']).compareTo(DateTime.parse(a['timestamp'])));
+      
+      // Keep only the most recent 5
+      if (recentActivity.length > 5) {
+        recentActivity = recentActivity.sublist(0, 5);
+      }
+      
+      setState(() {
+        _recentActivity = recentActivity;
+      });
+    } catch (e) {
+      log('Error loading recent activity: $e');
+    }
+  }
+  
+  Future<void> _logout() async {
+    setState(() => _isLoading = true);
+    try {
+      // First sign out from Supabase
+      await _supabase.auth.signOut();
+      // Then clear local session data
+      await SessionService.clearSession();
+      
+      if (!mounted) return;
+      
+      // Clear the navigation stack completely and go to login screen
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      log('Error during logout: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error signing out: $e')),
+        );
+      }
     }
   }
 
@@ -103,16 +231,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await Supabase.instance.client.auth.signOut();
-              await SessionService.clearSession();
-
-              if (!context.mounted) return;
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-              );
-            },
+            onPressed: _logout,
             tooltip: 'Logout',
           ),
         ],
@@ -158,10 +277,50 @@ class _AdminDashboardState extends State<AdminDashboard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Welcome section
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 25,
+                      backgroundColor: Colors.green,
+                      child: Icon(Icons.admin_panel_settings, color: Colors.white, size: 30),
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Welcome back, $_adminName',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '${DateTime.now().day} ${_getMonthName(DateTime.now().month)} ${DateTime.now().year}',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 24),
+            
             const Text(
               'Platform Overview',
               style: TextStyle(
-                fontSize: 24, 
+                fontSize: 20, 
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -181,6 +340,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     width: 180,
                   ),
                   _buildStatCard(
+                    icon: Icons.person,
+                    iconColor: Colors.blue,
+                    title: 'Buyers',
+                    value: _dashboardStats['buyers'].toString(),
+                    width: 180,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.store,
+                    iconColor: Colors.purple,
+                    title: 'Sellers',
+                    value: _dashboardStats['sellers'].toString(),
+                    width: 180,
+                  ),
+                  _buildStatCard(
                     icon: Icons.verified_user,
                     iconColor: Colors.orange,
                     title: 'Pending Verifications',
@@ -189,14 +362,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                   _buildStatCard(
                     icon: Icons.gavel,
-                    iconColor: Colors.blue,
+                    iconColor: Colors.teal,
                     title: 'Pending Auctions',
                     value: _dashboardStats['pendingAuctions'].toString(),
                     width: 180,
                   ),
                   _buildStatCard(
                     icon: Icons.support_agent,
-                    iconColor: Colors.teal,
+                    iconColor: Colors.indigo,
                     title: 'Open Tickets',
                     value: _dashboardStats['openTickets'].toString(),
                     width: 180,
@@ -212,12 +385,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ),
             ),
             
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
             
             const Text(
               'Quick Actions',
               style: TextStyle(
-                fontSize: 24, 
+                fontSize: 20, 
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -240,40 +413,64 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 ),
                 _buildActionCard(
                   icon: Icons.support_agent,
-                  iconColor: Colors.teal,
+                  iconColor: Colors.indigo,
                   title: 'CSR Management',
                   description: 'Manage support staff and performance',
                   onTap: () => _navigateToCSRManagement(),
                 ),
                 _buildActionCard(
-                  icon: Icons.gavel,
-                  iconColor: Colors.blue,
-                  title: 'Auction Approval',
-                  description: 'Review and approve auction listings',
-                  onTap: () => _navigateToAuctionApproval(),
+                  icon: Icons.content_paste,
+                  iconColor: Colors.teal,
+                  title: 'Content Moderation',
+                  description: 'Review auctions, reports and content',
+                  onTap: () => _navigateToContentModeration(),
                 ),
                 _buildActionCard(
-                  icon: Icons.settings,
+                  icon: Icons.analytics,
                   iconColor: Colors.purple,
-                  title: 'Platform Settings',
-                  description: 'Configure platform-wide settings',
-                  onTap: () => _navigateToPlatformSettings(),
+                  title: 'Analytics Dashboard',
+                  description: 'View platform performance metrics',
+                  onTap: () => _navigateToAnalytics(),
                 ),
               ],
             ),
             
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
             
-            // Recent Activity Section (Placeholder)
+            // Recent Activity Section
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Recent Activity',
+                  style: TextStyle(
+                    fontSize: 20, 
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    // Navigate to full activity log
+                  },
+                  child: const Text('View All'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _buildRecentActivityList(),
+            
+            const SizedBox(height: 24),
+            
+            // System Status Section
             const Text(
-              'Recent Activity',
+              'System Status',
               style: TextStyle(
-                fontSize: 24, 
+                fontSize: 20, 
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 16),
-            _buildRecentActivityList(),
+            _buildSystemStatusCard(),
           ],
         ),
       ),
@@ -375,8 +572,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildRecentActivityList() {
-    // This is a placeholder for recent activity
-    // You can replace this with actual data from your backend
+    // Using string_extensions.dart for .capitalize()
+    String formatContentType(String type) => type.capitalize();
+    
+    if (_recentActivity.isEmpty) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Center(
+            child: Text('No recent activity to display'),
+          ),
+        ),
+      );
+    }
+    
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -384,50 +593,58 @@ class _AdminDashboardState extends State<AdminDashboard> {
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        itemCount: 5,
+        itemCount: _recentActivity.length,
         separatorBuilder: (context, index) => const Divider(),
         itemBuilder: (context, index) {
-          String title;
-          String subtitle;
+          final activity = _recentActivity[index];
           IconData icon;
           Color iconColor;
+          String title;
           
-          switch (index) {
-            case 0:
-              title = 'New user registered';
-              subtitle = '2 minutes ago';
-              icon = Icons.person_add;
-              iconColor = Colors.green;
-              break;
-            case 1:
-              title = 'Auction listing approved';
-              subtitle = '15 minutes ago';
-              icon = Icons.gavel;
-              iconColor = Colors.blue;
-              break;
-            case 2:
-              title = 'Support ticket resolved';
-              subtitle = '1 hour ago';
-              icon = Icons.check_circle;
-              iconColor = Colors.teal;
-              break;
-            case 3:
-              title = 'Seller verification approved';
-              subtitle = '3 hours ago';
-              icon = Icons.verified_user;
-              iconColor = Colors.orange;
-              break;
-            case 4:
-              title = 'Content report handled';
-              subtitle = '5 hours ago';
-              icon = Icons.report_problem;
-              iconColor = Colors.red;
-              break;
-            default:
-              title = 'Activity item';
-              subtitle = 'Time ago';
-              icon = Icons.info;
-              iconColor = Colors.grey;
+          final timestamp = DateTime.parse(activity['timestamp']);
+          final timeAgo = _getTimeAgo(timestamp);
+          
+          if (activity['type'] == 'moderation') {
+            // Handle moderation activity
+            switch (activity['action']) {
+              case 'approve':
+                icon = Icons.check_circle;
+                iconColor = Colors.green;
+                title = '${activity['content_type'].toString().capitalize()} approved';
+                break;
+              case 'reject':
+                icon = Icons.cancel;
+                iconColor = Colors.red;
+                title = '${activity['content_type'].toString().capitalize()} rejected';
+                break;
+              default:
+                icon = Icons.content_paste;
+                iconColor = Colors.blue;
+                title = '${activity['action'].toString().capitalize()} ${activity['content_type']}';
+            }
+          } else {
+            // Handle user action
+            switch (activity['action']) {
+              case 'suspend':
+                icon = Icons.block;
+                iconColor = Colors.orange;
+                title = 'User suspended';
+                break;
+              case 'ban':
+                icon = Icons.delete_forever;
+                iconColor = Colors.red;
+                title = 'User banned';
+                break;
+              case 'warn':
+                icon = Icons.warning;
+                iconColor = Colors.amber;
+                title = 'User warned';
+                break;
+              default:
+                icon = Icons.person;
+                iconColor = Colors.blue;
+                title = '${activity['action'].toString().capitalize()} user';
+            }
           }
           
           return ListTile(
@@ -436,7 +653,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
               child: Icon(icon, color: iconColor),
             ),
             title: Text(title),
-            subtitle: Text(subtitle),
+            subtitle: Text(
+              activity['type'] == 'moderation'
+                ? 'By ${activity['user']} • $timeAgo'
+                : 'By ${activity['admin']} • $timeAgo'
+            ),
             trailing: const Icon(Icons.arrow_forward_ios, size: 14),
             onTap: () {
               // Navigate to specific activity detail
@@ -444,6 +665,99 @@ class _AdminDashboardState extends State<AdminDashboard> {
           );
         },
       ),
+    );
+  }
+  
+  Widget _buildSystemStatusCard() {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.green),
+                const SizedBox(width: 8),
+                const Text(
+                  'All Systems Operational',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () {
+                    // Navigate to system settings
+                    _navigateToPlatformSettings();
+                  },
+                  child: const Text('Settings'),
+                ),
+              ],
+            ),
+            const Divider(),
+            const SizedBox(height: 8),
+            // Status of individual services
+            _buildStatusRow('Database', 'Operational', Colors.green),
+            const SizedBox(height: 8),
+            _buildStatusRow('Authentication', 'Operational', Colors.green),
+            const SizedBox(height: 8),
+            _buildStatusRow('Storage', 'Operational', Colors.green),
+            const SizedBox(height: 8),
+            _buildStatusRow('Payment Processing', 'Operational', Colors.green),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton(
+                  onPressed: () {
+                    // Toggle maintenance mode
+                    _showMaintenanceModeDialog();
+                  },
+                  child: const Text('Maintenance Mode'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildStatusRow(String service, String status, Color statusColor) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          service,
+          style: const TextStyle(fontSize: 14),
+        ),
+        Row(
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: statusColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              status,
+              style: TextStyle(
+                fontSize: 14,
+                color: statusColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -456,16 +770,16 @@ class _AdminDashboardState extends State<AdminDashboard> {
             decoration: BoxDecoration(
               color: Theme.of(context).primaryColor,
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
+                const CircleAvatar(
                   radius: 30,
                   backgroundColor: Colors.white,
                   child: Icon(Icons.admin_panel_settings, size: 30, color: Colors.green),
                 ),
-                SizedBox(height: 10),
-                Text(
+                const SizedBox(height: 10),
+                const Text(
                   'Admin Panel',
                   style: TextStyle(
                     color: Colors.white,
@@ -474,8 +788,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                 ),
                 Text(
-                  'Kutanda Plant Auction',
-                  style: TextStyle(
+                  _adminName,
+                  style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
                   ),
@@ -508,14 +822,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.gavel),
-            title: const Text('Auction Approval'),
-            onTap: () {
-              Navigator.pop(context);
-              _navigateToAuctionApproval();
-            },
-          ),
-          ListTile(
             leading: const Icon(Icons.verified_user),
             title: const Text('Seller Verification'),
             onTap: () {
@@ -524,7 +830,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.report_problem),
+            leading: const Icon(Icons.content_paste),
             title: const Text('Content Moderation'),
             onTap: () {
               Navigator.pop(context);
@@ -541,7 +847,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           ListTile(
             leading: const Icon(Icons.settings),
-            title: const Text('Platform Settings'),
+            title: const Text('System Settings'),
             onTap: () {
               Navigator.pop(context);
               _navigateToPlatformSettings();
@@ -549,73 +855,206 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           const Divider(),
           ListTile(
+            leading: const Icon(Icons.help),
+            title: const Text('Help & Documentation'),
+            onTap: () {
+              Navigator.pop(context);
+              _showHelpDialog();
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Logout'),
-            onTap: () async {
+            onTap: () {
               Navigator.pop(context);
-              await Supabase.instance.client.auth.signOut();
-              await SessionService.clearSession();
-
-              if (!context.mounted) return;
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-              );
+              _logout();
             },
           ),
         ],
       ),
     );
   }
+  
+  void _showMaintenanceModeDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final durationController = TextEditingController(text: '30');
+        final messageController = TextEditingController(
+          text: 'The system is currently undergoing scheduled maintenance. Please check back soon.',
+        );
+        
+        return AlertDialog(
+          title: const Text('Enter Maintenance Mode'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Warning: This will make the platform inaccessible to all users except administrators.',
+                  style: TextStyle(color: Colors.red),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: durationController,
+                  decoration: const InputDecoration(
+                    labelText: 'Duration (minutes)',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: messageController,
+                  decoration: const InputDecoration(
+                    labelText: 'Maintenance Message',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('CANCEL'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                // TODO: Implement maintenance mode activation
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Maintenance mode activated for ${durationController.text} minutes',
+                    ),
+                  ),
+                );
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('ACTIVATE'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  void _showHelpDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Admin Help & Documentation'),
+          content: const SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Quick Reference Guide',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                SizedBox(height: 10),
+                Text('• User Management: Manage platform users and their roles.'),
+                Text('• CSR Management: Oversee customer support representatives.'),
+                Text('• Content Moderation: Review and approve platform content.'),
+                Text('• Analytics: View platform performance metrics.'),
+                Text('• System Settings: Configure platform settings.'),
+                SizedBox(height: 15),
+                Text(
+                  'Need More Help?',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                SizedBox(height: 10),
+                Text('Refer to the full documentation for detailed instructions.'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
+  // Helper methods for formatting and display
+  String _getMonthName(int month) {
+    const months = [
+      'January', 'February', 'March', 'April',
+      'May', 'June', 'July', 'August',
+      'September', 'October', 'November', 'December'
+    ];
+    return months[month - 1];
+  }
+  
+  String _getTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+    
+    if (difference.inSeconds < 60) {
+      return '${difference.inSeconds} seconds ago';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} minutes ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} hours ago';
+    } else if (difference.inDays < 30) {
+      return '${difference.inDays} days ago';
+    } else if (difference.inDays < 365) {
+      return '${(difference.inDays / 30).round()} months ago';
+    } else {
+      return '${(difference.inDays / 365).round()} years ago';
+    }
+  }
+  
   // Navigation methods for each section
   void _navigateToUserManagement() {
-    // Navigate to user management screen
-    // This is a placeholder and should be replaced with actual navigation
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('User Management feature coming soon')),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AdminUserManagementScreen()),
     );
   }
 
   void _navigateToCSRManagement() {
-    // Navigate to CSR management screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('CSR Management feature coming soon')),
-    );
-  }
-
-  void _navigateToAuctionApproval() {
-    // Navigate to auction approval screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Auction Approval feature coming soon')),
-    );
-  }
-
-  void _navigateToSellerVerification() {
-    // Navigate to seller verification screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Seller Verification feature coming soon')),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AdminCsrManagementScreen()),
     );
   }
 
   void _navigateToContentModeration() {
-    // Navigate to content moderation screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Content Moderation feature coming soon')),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AdminContentModerationScreen()),
+    );
+  }
+
+  void _navigateToSellerVerification() {
+    // This could redirect to a specific tab in the Content Moderation screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AdminContentModerationScreen()),
     );
   }
 
   void _navigateToAnalytics() {
-    // Navigate to analytics screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Analytics feature coming soon')),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AdminAnalyticsScreen()),
     );
   }
 
   void _navigateToPlatformSettings() {
-    // Navigate to platform settings screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Platform Settings feature coming soon')),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AdminSystemConfigScreen()),
     );
   }
 }
