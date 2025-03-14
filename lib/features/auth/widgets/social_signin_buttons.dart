@@ -37,7 +37,7 @@ class _SocialSignInButtonsState extends State<SocialSignInButtons> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : Image.asset(
-                  'assets/images/google_logo.png',
+                  'lib/assets/images/g-logo.png',
                   height: 24,
                   width: 24,
                 ),

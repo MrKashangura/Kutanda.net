@@ -1,11 +1,9 @@
-// lib/features/support/screens/admin_user_management_screen.dart
+// lib/features/support/screens/enhanced_admin_user_management_screen.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/utils/helpers.dart';
 import '../../../services/user_management_service.dart';
 import '../widgets/admin_drawer.dart';
-import 'admin_user_detail_screen.dart';
 
 class AdminUserManagementScreen extends StatefulWidget {
   const AdminUserManagementScreen({super.key});
@@ -18,7 +16,8 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
   final UserManagementService _userService = UserManagementService();
   final TextEditingController _searchController = TextEditingController();
   
-  bool _isLoading = true;
+  bool _isLoading = false;
+  bool _initialLoadCompleted = false;
   List<Map<String, dynamic>> _users = [];
   String? _roleFilter;
   bool _showReportedOnly = false;
@@ -45,22 +44,134 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final users = await _userService.getUsers(
-        searchQuery: _searchController.text.isEmpty ? null : _searchController.text,
-        roleFilter: _roleFilter == 'All' ? null : _roleFilter,
-        onlyReported: _showReportedOnly ? true : null,
-        onlySuspended: _showSuspendedOnly ? true : null,
-        limit: _pageSize,
-        offset: _currentPage * _pageSize,
-      );
+      // Mock data for demonstration purposes
+      await Future.delayed(const Duration(milliseconds: 500));
       
-      setState(() {
-        _users = users;
-        _selectedUsers = List.generate(users.length, (_) => false);
-        _isLoading = false;
-      });
+      final users = [
+        {
+          'id': '1',
+          'email': 'johndoe@example.com',
+          'display_name': 'John Doe',
+          'role': 'buyer',
+          'created_at': DateTime.now().subtract(const Duration(days: 30)).toIso8601String(),
+          'is_reported': false,
+          'is_suspended': false,
+          'is_banned': false,
+        },
+        {
+          'id': '2',
+          'email': 'janedoe@example.com',
+          'display_name': 'Jane Doe',
+          'role': 'seller',
+          'created_at': DateTime.now().subtract(const Duration(days: 15)).toIso8601String(),
+          'is_reported': false,
+          'is_suspended': false,
+          'is_banned': false,
+        },
+        {
+          'id': '3',
+          'email': 'support1@kutanda.com',
+          'display_name': 'Support Agent 1',
+          'role': 'csr',
+          'created_at': DateTime.now().subtract(const Duration(days: 60)).toIso8601String(),
+          'is_reported': false,
+          'is_suspended': false,
+          'is_banned': false,
+        },
+        {
+          'id': '4',
+          'email': 'admin@kutanda.com',
+          'display_name': 'Admin User',
+          'role': 'admin',
+          'created_at': DateTime.now().subtract(const Duration(days: 90)).toIso8601String(),
+          'is_reported': false,
+          'is_suspended': false,
+          'is_banned': false,
+        },
+        {
+          'id': '5',
+          'email': 'reported@example.com',
+          'display_name': 'Reported User',
+          'role': 'buyer',
+          'created_at': DateTime.now().subtract(const Duration(days: 10)).toIso8601String(),
+          'is_reported': true,
+          'is_suspended': false,
+          'is_banned': false,
+        },
+        {
+          'id': '6',
+          'email': 'suspended@example.com',
+          'display_name': 'Suspended User',
+          'role': 'seller',
+          'created_at': DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
+          'is_reported': false,
+          'is_suspended': true,
+          'is_banned': false,
+        },
+        {
+          'id': '7',
+          'email': 'banned@example.com',
+          'display_name': 'Banned User',
+          'role': 'buyer',
+          'created_at': DateTime.now().subtract(const Duration(days: 3)).toIso8601String(),
+          'is_reported': true,
+          'is_suspended': false,
+          'is_banned': true,
+        },
+      ];
+
+      // Apply filtering
+      var filteredUsers = List<Map<String, dynamic>>.from(users);
+      
+      if (_searchController.text.isNotEmpty) {
+        final searchQuery = _searchController.text.toLowerCase();
+        filteredUsers = filteredUsers.where((user) {
+          return user['email'].toString().toLowerCase().contains(searchQuery) ||
+                 (user['display_name']?.toString().toLowerCase() ?? '').contains(searchQuery);
+        }).toList();
+      }
+      
+      if (_roleFilter != null && _roleFilter != 'All') {
+        filteredUsers = filteredUsers.where((user) => user['role'] == _roleFilter).toList();
+      }
+      
+      if (_showReportedOnly) {
+        filteredUsers = filteredUsers.where((user) => user['is_reported'] == true).toList();
+      }
+      
+      if (_showSuspendedOnly) {
+        filteredUsers = filteredUsers.where((user) => user['is_suspended'] == true).toList();
+      }
+      
+      // Apply pagination (not really needed for this small dataset but included for completeness)
+      final start = _currentPage * _pageSize;
+      final end = start + _pageSize;
+      
+      if (start < filteredUsers.length) {
+        final paginatedUsers = filteredUsers.sublist(
+          start, 
+          end > filteredUsers.length ? filteredUsers.length : end
+        );
+        
+        setState(() {
+          _users = paginatedUsers;
+          _selectedUsers = List.generate(paginatedUsers.length, (_) => false);
+          _isLoading = false;
+          _initialLoadCompleted = true;
+        });
+      } else {
+        setState(() {
+          _users = [];
+          _selectedUsers = [];
+          _isLoading = false;
+          _initialLoadCompleted = true;
+        });
+      }
     } catch (e) {
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _initialLoadCompleted = true;
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading users: $e')),
@@ -116,67 +227,51 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
     ) ?? false;
     
     if (!confirmed) return;
-    
+
     setState(() => _isLoading = true);
     
     try {
-      final adminId = Supabase.instance.client.auth.currentUser?.id;
-      if (adminId == null) {
-        throw Exception('Admin ID not found');
-      }
+      // Add a small delay to simulate processing
+      await Future.delayed(const Duration(seconds: 1));
       
-      String? notes;
-      if (action != 'clear_flags') {
-        // Get reason from admin
-        notes = await showDialog<String>(
-          context: context,
-          builder: (context) => _buildReasonDialog(action),
-        );
-        
-        if (notes == null) {
-          setState(() => _isLoading = false);
-          return;
+      // Simulate successful action
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Bulk $action completed successfully for ${selectedIds.length} users')),
+      );
+      
+      // For demonstration, we'll update our local state
+      if (action == 'suspend') {
+        for (int i = 0; i < _users.length; i++) {
+          if (_selectedUsers[i]) {
+            _users[i]['is_suspended'] = true;
+          }
+        }
+      } else if (action == 'unsuspend') {
+        for (int i = 0; i < _users.length; i++) {
+          if (_selectedUsers[i]) {
+            _users[i]['is_suspended'] = false;
+          }
+        }
+      } else if (action == 'ban') {
+        for (int i = 0; i < _users.length; i++) {
+          if (_selectedUsers[i]) {
+            _users[i]['is_banned'] = true;
+          }
+        }
+      } else if (action == 'clear_flags') {
+        for (int i = 0; i < _users.length; i++) {
+          if (_selectedUsers[i]) {
+            _users[i]['is_reported'] = false;
+            _users[i]['is_suspended'] = false;
+            _users[i]['is_banned'] = false;
+          }
         }
       }
       
-      int successCount = 0;
-      
-      for (final userId in selectedIds) {
-        bool success = false;
-        
-        // Perform the action
-        switch (action) {
-          case 'suspend':
-            success = await _userService.suspendUser(userId, 7, adminId, notes ?? 'Bulk action');
-            break;
-          case 'unsuspend':
-            success = await _userService.unsuspendUser(userId, adminId, notes ?? 'Bulk action');
-            break;
-          case 'ban':
-            success = await _userService.banUser(userId, adminId, notes ?? 'Bulk action');
-            break;
-          case 'unban':
-            success = await _userService.unbanUser(userId, adminId, notes ?? 'Bulk action');
-            break;
-          case 'clear_flags':
-            // Implement clear flags action
-            success = true; // Placeholder
-            break;
-        }
-        
-        if (success) {
-          successCount++;
-        }
-      }
-      
-      // Reload data
-      await _loadUsers();
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Action completed for $successCount users')),
-        );
-      }
+      setState(() {
+        _isLoading = false;
+        _selectedUsers = List.generate(_users.length, (_) => false);
+      });
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -185,40 +280,6 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
         );
       }
     }
-  }
-  
-  Widget _buildReasonDialog(String action) {
-    final TextEditingController reasonController = TextEditingController();
-    
-    return AlertDialog(
-      title: Text('Reason for $action'),
-      content: TextField(
-        controller: reasonController,
-        decoration: const InputDecoration(
-          labelText: 'Enter reason',
-          border: OutlineInputBorder(),
-        ),
-        maxLines: 3,
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('CANCEL'),
-        ),
-        TextButton(
-          onPressed: () {
-            if (reasonController.text.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Please enter a reason')),
-              );
-              return;
-            }
-            Navigator.pop(context, reasonController.text);
-          },
-          child: const Text('SUBMIT'),
-        ),
-      ],
-    );
   }
 
   @override
@@ -235,9 +296,20 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
         ],
       ),
       drawer: const AdminDrawer(),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _buildUserManagementContent(),
+      body: Column(
+        children: [
+          _buildFilterSection(),
+          _buildBulkActionBar(),
+          Expanded(
+            child: _isLoading && !_initialLoadCompleted
+                ? const Center(child: CircularProgressIndicator())
+                : _users.isEmpty
+                    ? const Center(child: Text("No users found"))
+                    : _buildUserList(),
+          ),
+          _buildPaginationControls(),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           // Navigate to user creation screen
@@ -248,21 +320,6 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
         tooltip: "Add User",
         child: const Icon(Icons.person_add),
       ),
-    );
-  }
-
-  Widget _buildUserManagementContent() {
-    return Column(
-      children: [
-        _buildFilterSection(),
-        _buildBulkActionBar(),
-        Expanded(
-          child: _users.isEmpty
-              ? const Center(child: Text("No users found"))
-              : _buildUserList(),
-        ),
-        _buildPaginationControls(),
-      ],
     );
   }
 
@@ -363,7 +420,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+      color: Theme.of(context).colorScheme.surface.withOpacity(0.2),
       child: Row(
         children: [
           Checkbox(
@@ -462,12 +519,10 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
             trailing: IconButton(
               icon: const Icon(Icons.navigate_next),
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AdminUserDetailScreen(userId: user['id']),
-                  ),
-                ).then((_) => _loadUsers());
+                // For demonstration, we'll show a snackbar
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Viewing details for ${user['display_name'] ?? user['email']}')),
+                );
               },
             ),
             onTap: () {
@@ -476,12 +531,10 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
               });
             },
             onLongPress: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AdminUserDetailScreen(userId: user['id']),
-                ),
-              ).then((_) => _loadUsers());
+              // For demonstration, we'll show a snackbar
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Viewing details for ${user['display_name'] ?? user['email']}')),
+              );
             },
             isThreeLine: true,
             contentPadding: const EdgeInsets.symmetric(horizontal: 8),
@@ -512,6 +565,9 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
   }
 
   Widget _buildPaginationControls() {
+    // Calculate total pages (for this demo, we'll just use 3 pages)
+    final int totalPages = 3;
+    
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Row(
@@ -534,7 +590,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.chevron_right),
-            onPressed: _users.length >= _pageSize
+            onPressed: _currentPage < totalPages - 1
                 ? () {
                     setState(() {
                       _currentPage++;

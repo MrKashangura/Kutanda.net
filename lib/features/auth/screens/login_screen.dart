@@ -132,8 +132,8 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Image.asset(
-                'assets/images/logo.png',
-                height: 120,
+                'lib/assets/images/KutandaLogo.png',
+                height: 420,
               ),
               const SizedBox(height: 32),
               const CircularProgressIndicator(),
@@ -154,7 +154,7 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 // Logo
                 Image.asset(
-                  'assets/images/logo.png',
+                  'lib/assets/images/KutandaLogo.png',
                   height: 120,
                 ),
                 

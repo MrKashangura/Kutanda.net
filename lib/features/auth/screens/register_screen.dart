@@ -136,7 +136,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               children: [
                 // Logo
                 Image.asset(
-                  'assets/images/logo.png',
+                  'lib/assets/images/KutandaLogo.png',
                   height: 80,
                 ),
                 

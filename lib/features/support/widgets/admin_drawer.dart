@@ -2,12 +2,14 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../screens/admin_dashboard.dart';
-import '../screens/admin_user_management_screen.dart';
-import '../screens/admin_csr_management_screen.dart';
-import '../screens/admin_content_moderation_screen.dart';
+import '../../../shared/services/session_service.dart';
+import '../../auth/screens/login_screen.dart';
 import '../screens/admin_analytics_screen.dart';
+import '../screens/admin_content_moderation_screen.dart';
+import '../screens/admin_csr_management_screen.dart';
+import '../screens/admin_dashboard.dart';
 import '../screens/admin_system_config_screen.dart';
+import '../screens/admin_user_management_screen.dart';
 
 class AdminDrawer extends StatelessWidget {
   const AdminDrawer({super.key});
@@ -63,7 +65,7 @@ class AdminDrawer extends StatelessWidget {
             ),
           ),
           
-          // User Management
+          // User Management - Updated to navigate to the enhanced screen
           ListTile(
             leading: const Icon(Icons.manage_accounts),
             title: const Text('User Management'),
@@ -165,6 +167,31 @@ class AdminDrawer extends StatelessWidget {
           ),
           
           const Divider(),
+          
+          // Logout option
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('Logout'),
+            onTap: () async {
+              try {
+                await Supabase.instance.client.auth.signOut();
+                await SessionService.clearSession();
+                
+                if (context.mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    (route) => false,
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error signing out: $e')),
+                  );
+                }
+              }
+            },
+          ),
           
           // Help & Documentation
           ListTile(

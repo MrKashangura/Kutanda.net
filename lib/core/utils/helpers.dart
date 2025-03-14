@@ -2,12 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-/// Formats a double as a currency string
-String formatCurrency(double amount) {
-  final formatter = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
-  return formatter.format(amount);
-}
-
 /// Formats a DateTime as a date string
 String formatDate(DateTime date) {
   final formatter = DateFormat('MMM d, yyyy');
@@ -94,6 +88,47 @@ void showLoadingDialog(BuildContext context) {
   );
 }
 
+String formatRelativeTime(DateTime dateTime) {
+  final now = DateTime.now();
+  final difference = now.difference(dateTime);
+
+  if (difference.inDays > 365) {
+    return '${(difference.inDays / 365).floor()} ${(difference.inDays / 365).floor() == 1 ? 'year' : 'years'} ago';
+  } else if (difference.inDays > 30) {
+    return '${(difference.inDays / 30).floor()} ${(difference.inDays / 30).floor() == 1 ? 'month' : 'months'} ago';
+  } else if (difference.inDays > 0) {
+    return '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ago';
+  } else if (difference.inHours > 0) {
+    return '${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ago';
+  } else if (difference.inMinutes > 0) {
+    return '${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ago';
+  } else {
+    return 'Just now';
+  }
+}
+
+/// Truncate text with ellipsis if it's too long
+String truncateWithEllipsis(String text, int maxLength) {
+  return text.length <= maxLength ? text : '${text.substring(0, maxLength)}...';
+}
+
+/// Extension method to capitalize the first letter of a string
+extension StringExtension on String {
+  String capitalize() {
+    if (isEmpty) return this;
+    return "${this[0].toUpperCase()}${substring(1)}";
+  }
+}
+
+/// Format a currency value
+String formatCurrency(double value) {
+  return '\${value.toStringAsFixed(2)}';
+}
+
+/// Format a percentage value
+String formatPercentage(double value) {
+  return '${value.toStringAsFixed(1)}%';
+}
 /// Shows a confirmation dialog and returns true if confirmed
 Future<bool> showConfirmationDialog(
   BuildContext context, {
@@ -137,36 +172,12 @@ bool isValidPassword(String password) {
   return password.length >= 6;
 }
 
-/// Returns a truncated string with ellipsis if it exceeds the max length
-String truncateWithEllipsis(String text, int maxLength) {
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return '${text.substring(0, maxLength)}...';
-}
+
 
 /// Formats a number with thousands separators
 String formatNumber(num number) {
   final formatter = NumberFormat('#,###');
   return formatter.format(number);
-}
-
-/// Formats a date with relative time (e.g., "2 days ago", "just now")
-String formatRelativeTime(DateTime date) {
-  final now = DateTime.now();
-  final difference = now.difference(date);
-  
-  if (difference.inSeconds < 60) {
-    return 'just now';
-  } else if (difference.inMinutes < 60) {
-    return '${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ago';
-  } else if (difference.inHours < 24) {
-    return '${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ago';
-  } else if (difference.inDays < 30) {
-    return '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ago';
-  } else {
-    return formatDate(date);
-  }
 }
 
 /// Extension on BuildContext to access theme and media query easily
@@ -179,9 +190,4 @@ extension BuildContextExtensions on BuildContext {
   double get screenHeight => MediaQuery.of(this).size.height;
   EdgeInsets get padding => MediaQuery.of(this).padding;
   bool get isKeyboardOpen => MediaQuery.of(this).viewInsets.bottom > 0;
-}
-extension StringExtension on String {
-  String capitalize() {
-    return "${this[0].toUpperCase()}${substring(1)}";
-  }
 }
