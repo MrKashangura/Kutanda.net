@@ -91,13 +91,14 @@ class SessionService {
 
   /// **Clear user session**
   static Future<void> clearSession() async {
-    try {
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
-      await supabase.auth.signOut();
-      log("✅ Session cleared.");
-    } catch (e) {
-      log("❌ Error clearing session: $e");
-    }
+  try {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    await supabase.auth.signOut();
+    log("✅ Session cleared.");
+  } catch (e) {
+    log("❌ Error clearing session: $e");
+    rethrow; // Rethrow to handle in UI
   }
+}
 }

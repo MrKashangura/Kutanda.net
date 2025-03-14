@@ -1,84 +1,102 @@
-// lib/services/auth_facebook.dart
+// lib/features/auth/services/auth_facebook_service.dart
 import 'dart:developer';
 
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Service for handling Facebook authentication with Supabase
-class FacebookAuthService {
-  final SupabaseClient supabase = Supabase.instance.client;
+import '../../../shared/services/session_service.dart';
 
-  /// Sign in with Facebook and authenticate with Supabase
-  // Properly handle the Facebook authentication with Supabase
-Future<AuthResponse?> signInWithFacebook() async {
-  try {
-    // Start the Facebook login process
-    final LoginResult result = await FacebookAuth.instance.login(
-      permissions: ['email', 'public_profile'],
-    );
+class AuthFacebookService {
+  final SupabaseClient _supabase = Supabase.instance.client;
 
-    if (result.status == LoginStatus.cancelled) {
-      log('Facebook login was canceled by the user');
-      return null;
+  /// Sign in with Facebook
+  Future<Map<String, dynamic>> signInWithFacebook() async {
+    try {
+      // Begin Facebook sign in process
+      final LoginResult result = await FacebookAuth.instance.login(
+        permissions: ['email', 'public_profile'],
+      );
+      
+      // Check if login was successful
+      if (result.status != LoginStatus.success) {
+        return {
+          'success': false,
+          'message': 'Facebook sign in failed: ${result.message}',
+        };
+      }
+      
+      // Get access token
+      final String? accessToken = result.accessToken?.token;
+      if (accessToken == null) {
+        return {
+          'success': false,
+          'message': 'Failed to get Facebook access token',
+        };
+      }
+      
+      // Get user data from Facebook
+      final userData = await FacebookAuth.instance.getUserData();
+      
+      // Sign in with Supabase using the Facebook access token
+      final AuthResponse response = await _supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.facebook,
+        idToken: accessToken, // For Facebook, we use the access token here
+      );
+      
+      final User? user = response.user;
+      
+      if (user == null) {
+        return {
+          'success': false,
+          'message': 'Failed to sign in with Facebook',
+        };
+      }
+      
+      // Check if this is a new user
+      final isNewUser = DateTime.now().difference(DateTime.parse(user.createdAt)).inSeconds.abs() < 5;
+      
+      if (isNewUser) {
+        // Create a new user profile in the users table
+        await _supabase.from('users').insert({
+          'id': user.id,
+          'email': user.email,
+          'display_name': userData['name'] ?? user.email?.split('@')[0],
+          'role': 'buyer', // Default role
+          'auth_provider': 'facebook',
+          'created_at': DateTime.now().toIso8601String(),
+        });
+        
+        // Also create a buyer profile
+        await _supabase.from('buyers').insert({
+          'user_id': user.id,
+          'is_active': true,
+          'created_at': DateTime.now().toIso8601String(),
+        });
+      }
+      
+      // Save the session
+      await SessionService.saveUserSession(user.id, 'buyer');
+      
+      return {
+        'success': true,
+        'user': user,
+        'isNewUser': isNewUser,
+      };
+    } catch (e) {
+      log('❌ Facebook sign in error: $e');
+      return {
+        'success': false,
+        'message': 'Error signing in with Facebook: $e',
+      };
     }
-
-    if (result.status == LoginStatus.failed) {
-      throw Exception('Facebook login failed: ${result.message}');
-    }
-
-    // Get access token
-    final String? accessToken = result.accessToken?.token;
-    if (accessToken == null) {
-      throw Exception('No access token found');
-    }
-
-    // Sign in to Supabase with Facebook OAuth provider
-    final response = await supabase.auth.signInWithIdToken(
-      provider: OAuthProvider.facebook,
-      idToken: accessToken, // Use the access token as the ID token
-      accessToken: accessToken,
-    );
-
-    log('✅ Facebook Auth Successful');
-    return response;
-  } catch (e) {
-    log('❌ Facebook Auth Error: $e');
-    rethrow;
   }
-}
 
   /// Sign out from Facebook
-  Future<void> signOutFacebook() async {
+  Future<void> signOut() async {
     try {
       await FacebookAuth.instance.logOut();
-      log('✅ Logged out from Facebook');
     } catch (e) {
-      log('❌ Error logging out from Facebook: $e');
-      rethrow;
-    }
-  }
-
-  /// Check if user is logged in with Facebook
-  Future<bool> isLoggedInWithFacebook() async {
-    try {
-      final AccessToken? accessToken = await FacebookAuth.instance.accessToken;
-      return accessToken != null;
-    } catch (e) {
-      log('❌ Error checking Facebook login status: $e');
-      return false;
-    }
-  }
-
-  /// Get Facebook user data
-  Future<Map<String, dynamic>?> getFacebookUserData() async {
-    try {
-      if (await isLoggedInWithFacebook()) {
-        return await FacebookAuth.instance.getUserData();
-      }
-      return null;
-    } catch (e) {
-      log('❌ Error getting Facebook user data: $e');
-      return null;
+      log('❌ Facebook sign out error: $e');
     }
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../services/user_management_service.dart';
+import '../../../shared/services/onesignal_service.dart';
 import '../../../shared/services/session_service.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../auth/screens/login_screen.dart';
@@ -192,31 +193,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     }
   }
   
-  Future<void> _logout() async {
-    setState(() => _isLoading = true);
-    try {
-      // First sign out from Supabase
-      await _supabase.auth.signOut();
-      // Then clear local session data
-      await SessionService.clearSession();
-      
-      if (!mounted) return;
-      
-      // Clear the navigation stack completely and go to login screen
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-        (route) => false,
-      );
-    } catch (e) {
-      log('Error during logout: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error signing out: $e')),
-        );
-      }
-    }
-  }
+ 
 
   @override
   Widget build(BuildContext context) {
@@ -1057,4 +1034,32 @@ class _AdminDashboardState extends State<AdminDashboard> {
       MaterialPageRoute(builder: (context) => const AdminSystemConfigScreen()),
     );
   }
+
+  Future<void> _logout() async {
+  setState(() => _isLoading = true); // Show loading indicator
+  
+  try {
+    // Clear OneSignal data first if you're using it
+    final oneSignalService = OneSignalService();
+    await oneSignalService.clearUserData();
+    
+    // Clear session using only SessionService to avoid double signOut calls
+    await SessionService.clearSession();
+    
+    if (!mounted) return;
+    
+    // Navigate to login screen
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false, // Remove all previous routes
+    );
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error logging out: $e')),
+      );
+      setState(() => _isLoading = false); // Hide loading indicator
+    }
+  }
+}
 }

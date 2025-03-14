@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../data/models/auction_model.dart';
 import '../../../services/api_service.dart';
+import '../../../shared/services/onesignal_service.dart';
 import '../../../shared/services/role_service.dart';
 import '../../../shared/services/session_service.dart';
 import '../../../shared/widgets/bottom_navigation.dart';
@@ -107,50 +108,33 @@ class _BuyerDashboardState extends State<BuyerDashboard> {
     }
   }
 
-  Future<void> _logout() async {
-    setState(() => _isLoading = true);
+Future<void> _logout() async {
+  setState(() => _isLoading = true); // Show loading indicator
+  
+  try {
+    // Clear OneSignal data first if you're using it
+    final oneSignalService = OneSignalService();
+    await oneSignalService.clearUserData();
     
-    try {
-      // Show loading indicator
-      if (!mounted) return;
-      
-      // Use a local context variable that won't be used after the async gap
-      BuildContext localContext = context;
-      
-      showDialog(
-        context: localContext,
-        barrierDismissible: false,
-        builder: (_) => const Center(child: CircularProgressIndicator()),
-      );
-      
-      await supabase.auth.signOut();
-      await SessionService.clearSession();
-      
-      if (!mounted) return;
-      
-      // Close loading dialog
-      Navigator.of(localContext).pop();
-      
-      Navigator.pushReplacement(
-        localContext,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      
-      // Try to close dialog if open
-      Navigator.of(context, rootNavigator: true).pop();
-      
+    // Clear session using only SessionService to avoid double signOut calls
+    await SessionService.clearSession();
+    
+    if (!mounted) return;
+    
+    // Navigate to login screen
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false, // Remove all previous routes
+    );
+  } catch (e) {
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error during logout: $e')),
+        SnackBar(content: Text('Error logging out: $e')),
       );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      setState(() => _isLoading = false); // Hide loading indicator
     }
   }
-
+}
   Stream<List<Auction>> _getAuctionsStream() {
     if (_showOnlyActive) {
       return _auctionService.getActiveAuctions();

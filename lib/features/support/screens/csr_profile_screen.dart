@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../shared/services/onesignal_service.dart';
 import '../../../shared/services/session_service.dart';
 import '../../auth/screens/login_screen.dart';
 import '../widgets/csr_drawer.dart';
@@ -90,27 +91,32 @@ class _CSRProfileScreenState extends State<CSRProfileScreen> {
   }
   
   Future<void> _logout() async {
-    setState(() => _isLoading = true);
+  setState(() => _isLoading = true); // Show loading indicator
+  
+  try {
+    // Clear OneSignal data first if you're using it
+    final oneSignalService = OneSignalService();
+    await oneSignalService.clearUserData();
     
-    try {
-      await _supabase.auth.signOut();
-      await SessionService.clearSession();
-      
-      if (!mounted) return;
-      
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
+    // Clear session using only SessionService to avoid double signOut calls
+    await SessionService.clearSession();
+    
+    if (!mounted) return;
+    
+    // Navigate to login screen
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false, // Remove all previous routes
+    );
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error logging out: $e')),
       );
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error signing out: $e')),
-        );
-      }
+      setState(() => _isLoading = false); // Hide loading indicator
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {

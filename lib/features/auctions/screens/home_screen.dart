@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../shared/services/onesignal_service.dart';
+import '../../../shared/services/session_service.dart';
 import '../../auth/screens/login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -13,6 +15,7 @@ class HomeScreen extends StatefulWidget {
 class HomeScreenState extends State<HomeScreen> {
   final SupabaseClient supabase = Supabase.instance.client;
   Map<String, dynamic>? userData;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -38,14 +41,33 @@ class HomeScreenState extends State<HomeScreen> {
 }
 
 
-  Future<void> _logout() async {
-    await supabase.auth.signOut();
+ Future<void> _logout() async {
+  setState(() => _isLoading = true); // Show loading indicator
+  
+  try {
+    // Clear OneSignal data first if you're using it
+    final oneSignalService = OneSignalService();
+    await oneSignalService.clearUserData();
+    
+    // Clear session using only SessionService to avoid double signOut calls
+    await SessionService.clearSession();
+    
     if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
+    
+    // Navigate to login screen
+    Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false, // Remove all previous routes
     );
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error logging out: $e')),
+      );
+      setState(() => _isLoading = false); // Hide loading indicator
+    }
   }
+}
 
   @override
   Widget build(BuildContext context) {
