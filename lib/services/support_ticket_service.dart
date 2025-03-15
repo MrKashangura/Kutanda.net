@@ -135,7 +135,7 @@ class SupportTicketService {
       final response = await _supabase
           .from('support_tickets')
           .select()
-          .eq('id', ticketId)
+          .eq('uid', ticketId)
           .single();
       
       // Get messages for this ticket
@@ -162,7 +162,7 @@ class SupportTicketService {
       await _supabase
           .from('support_tickets')
           .update(ticket.toMap())
-          .eq('id', ticket.id);
+          .eq('uid', ticket.id);
       
       log('✅ Support ticket updated: ${ticket.id}');
       return true;
@@ -184,7 +184,7 @@ class SupportTicketService {
       await _supabase
           .from('support_tickets')
           .update({'last_updated': DateTime.now().toIso8601String()})
-          .eq('id', message.ticketId);
+          .eq('uid', message.ticketId);
       
       log('✅ Message added to ticket: ${message.ticketId}');
       return true;
@@ -204,7 +204,7 @@ class SupportTicketService {
             'status': TicketStatus.inProgress.toString().split('.').last,
             'last_updated': DateTime.now().toIso8601String()
           })
-          .eq('id', ticketId);
+          .eq('uid', ticketId);
       
       log('✅ Ticket assigned to CSR: $csrId');
       return true;
@@ -223,7 +223,7 @@ class SupportTicketService {
             'status': status.toString().split('.').last,
             'last_updated': DateTime.now().toIso8601String()
           })
-          .eq('id', ticketId);
+          .eq('uid', ticketId);
       
       log('✅ Ticket status updated: $status');
       return true;
@@ -285,7 +285,7 @@ class SupportTicketService {
       final response = await _supabase
           .from('dispute_tickets')
           .select()
-          .eq('id', disputeId)
+          .eq('uid', disputeId)
           .single();
       
       return DisputeTicket.fromMap(response);
@@ -301,7 +301,7 @@ class SupportTicketService {
       await _supabase
           .from('dispute_tickets')
           .update(dispute.toMap())
-          .eq('id', dispute.id);
+          .eq('uid', dispute.id);
       
       log('✅ Dispute updated: ${dispute.id}');
       return true;
@@ -322,7 +322,7 @@ class SupportTicketService {
             'csr_notes': csrNotes,
             'resolved_at': DateTime.now().toIso8601String()
           })
-          .eq('id', disputeId);
+          .eq('uid', disputeId);
       
       log('✅ Dispute resolved: $disputeId');
       return true;
@@ -389,7 +389,7 @@ class SupportTicketService {
       final response = await _supabase
           .from('content_reports')
           .select()
-          .eq('id', reportId)
+          .eq('uid', reportId)
           .single();
       
       return ContentReport.fromMap(response);
@@ -415,7 +415,7 @@ class SupportTicketService {
             'moderator_notes': notes,
             'reviewed_at': DateTime.now().toIso8601String()
           })
-          .eq('id', reportId);
+          .eq('uid', reportId);
       
       // If approved, handle content removal based on type
       if (decision == ContentReportStatus.approved) {
@@ -442,7 +442,7 @@ class SupportTicketService {
           await _supabase
               .from('auctions')
               .update({'is_active': false, 'is_reported': true})
-              .eq('id', report.contentId);
+              .eq('uid', report.contentId);
           break;
           
         case ContentType.review:
@@ -450,7 +450,7 @@ class SupportTicketService {
           await _supabase
               .from('reviews')
               .update({'is_visible': false, 'is_reported': true})
-              .eq('id', report.contentId);
+              .eq('uid', report.contentId);
           break;
           
         case ContentType.user:
@@ -458,7 +458,7 @@ class SupportTicketService {
           await _supabase
               .from('users')
               .update({'is_reported': true})
-              .eq('id', report.contentId);
+              .eq('uid', report.contentId);
           break;
           
         case ContentType.message:
@@ -466,7 +466,7 @@ class SupportTicketService {
           await _supabase
               .from('ticket_messages')
               .update({'is_visible': false, 'is_reported': true})
-              .eq('id', report.contentId);
+              .eq('uid', report.contentId);
           break;
       }
     } catch (e, stackTrace) {

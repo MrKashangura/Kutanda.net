@@ -14,7 +14,7 @@ class UserRepository {
       final response = await _supabase
           .from('users')
           .select()
-          .eq('id', userId)
+          .eq('uid', userId)
           .maybeSingle();
       
       if (response == null) return null;

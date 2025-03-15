@@ -55,7 +55,7 @@ class _CSRDashboardState extends State<CSRDashboard> with SingleTickerProviderSt
         final userData = await _supabase
             .from('users')
             .select('display_name')
-            .eq('id', user.id)
+            .eq('uid', user.id)
             .single();
         
         _csrName = userData['display_name'] ?? 'CSR';

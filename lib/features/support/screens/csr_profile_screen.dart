@@ -39,7 +39,7 @@ class _CSRProfileScreenState extends State<CSRProfileScreen> {
       final userData = await _supabase
           .from('users')
           .select()
-          .eq('id', user.id)
+          .eq('uid', user.id)
           .single();
       
       // Get CSR performance stats

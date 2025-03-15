@@ -74,7 +74,7 @@ class SupportRepository {
       final response = await _supabase
           .from('support_tickets')
           .select()
-          .eq('id', ticketId)
+          .eq('uid', ticketId)
           .single();
       
       // Get messages for this ticket
@@ -171,7 +171,7 @@ class SupportRepository {
       await _supabase
           .from('support_tickets')
           .update({'last_updated': DateTime.now().toIso8601String()})
-          .eq('id', message.ticketId);
+          .eq('uid', message.ticketId);
       
       log('✅ Message added to ticket: ${message.ticketId}');
       return true;
@@ -190,7 +190,7 @@ class SupportRepository {
             'status': status.toString().split('.').last,
             'last_updated': DateTime.now().toIso8601String()
           })
-          .eq('id', ticketId);
+          .eq('uid', ticketId);
       
       log('✅ Ticket status updated: $status');
       return true;
@@ -209,7 +209,7 @@ class SupportRepository {
             'priority': priority.toString().split('.').last,
             'last_updated': DateTime.now().toIso8601String()
           })
-          .eq('id', ticketId);
+          .eq('uid', ticketId);
       
       log('✅ Ticket priority updated: $priority');
       return true;
@@ -228,7 +228,7 @@ class SupportRepository {
             'assigned_csr_id': csrId,
             'last_updated': DateTime.now().toIso8601String()
           })
-          .eq('id', ticketId);
+          .eq('uid', ticketId);
       
       log('✅ Ticket assigned to: $csrId');
       return true;
@@ -295,7 +295,7 @@ class SupportRepository {
             'csr_notes': csrNotes,
             'resolved_at': DateTime.now().toIso8601String()
           })
-          .eq('id', disputeId);
+          .eq('uid', disputeId);
       
       log('✅ Dispute resolved: $disputeId');
       return true;

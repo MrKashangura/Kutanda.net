@@ -150,7 +150,7 @@ class AuthSocialService {
       final response = await _supabase
           .from('users')
           .select('id')
-          .eq('id', userId)
+          .eq('uid', userId)
           .maybeSingle();
       
       return response == null;
@@ -195,7 +195,7 @@ class AuthSocialService {
       final response = await _supabase
           .from('users')
           .select('role')
-          .eq('id', userId)
+          .eq('uid', userId)
           .maybeSingle();
       
       return response?['role'] as String?;

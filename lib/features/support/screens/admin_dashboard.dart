@@ -46,7 +46,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         final userData = await _supabase
             .from('users')
             .select('display_name, email')
-            .eq('id', user.id)
+            .eq('uid', user.id)
             .maybeSingle();
             
         if (userData != null && mounted) {

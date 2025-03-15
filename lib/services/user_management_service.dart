@@ -55,7 +55,7 @@ class UserManagementService {
       final userResponse = await _supabase
           .from('users')
           .select('*')
-          .eq('id', userId)
+          .eq('uid', userId)
           .single();
       
       // Get the user's KYC status if they're a seller
@@ -201,7 +201,7 @@ class UserManagementService {
             'suspension_reason': reason,
             'suspended_at': DateTime.now().toIso8601String(),
           })
-          .eq('id', userId);
+          .eq('uid', userId);
       
       // Add to user action history
       await _supabase
@@ -238,7 +238,7 @@ class UserManagementService {
             'unsuspended_by': csrId,
             'unsuspended_at': DateTime.now().toIso8601String(),
           })
-          .eq('id', userId);
+          .eq('uid', userId);
       
       // Add to user action history
       await _supabase
@@ -290,7 +290,7 @@ class UserManagementService {
             'ban_reason': reason,
             'banned_at': DateTime.now().toIso8601String(),
           })
-          .eq('id', userId);
+          .eq('uid', userId);
       
       // Add to user action history
       await _supabase
@@ -325,7 +325,7 @@ class UserManagementService {
             'unbanned_by': csrId,
             'unbanned_at': DateTime.now().toIso8601String(),
           })
-          .eq('id', userId);
+          .eq('uid', userId);
       
       // Add to user action history
       await _supabase
@@ -590,7 +590,7 @@ class UserManagementService {
             'deactivation_reason': reason,
             'deactivated_at': DateTime.now().toIso8601String(),
           })
-          .eq('id', csrId)
+          .eq('uid', csrId)
           .eq('role', 'csr');
       
       // Add to user action history
@@ -624,7 +624,7 @@ class UserManagementService {
             'reactivation_reason': reason,
             'reactivated_at': DateTime.now().toIso8601String(),
           })
-          .eq('id', csrId)
+          .eq('uid', csrId)
           .eq('role', 'csr');
       
       // Add to user action history

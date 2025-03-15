@@ -29,7 +29,7 @@ class HomeScreenState extends State<HomeScreen> {
     final response = await supabase
         .from('users')
         .select()
-        .eq('id', user.id)
+        .eq('uid', user.id)
         .maybeSingle(); // ✅ Use maybeSingle() to prevent errors
 
     if (response != null && mounted) { 

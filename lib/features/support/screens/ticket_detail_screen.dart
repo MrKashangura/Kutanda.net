@@ -108,7 +108,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
         final userData = await _supabase
             .from('users')
             .select('display_name')
-            .eq('id', user.id)
+            .eq('uid', user.id)
             .single();
         
         setState(() {
@@ -151,7 +151,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
         final csrResponse = await _supabase
             .from('users')
             .select('display_name, email')
-            .eq('id', csrId)
+            .eq('uid', csrId)
             .maybeSingle();
         
         if (csrResponse != null) {

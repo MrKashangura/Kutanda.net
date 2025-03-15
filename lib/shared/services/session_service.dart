@@ -47,7 +47,7 @@ class SessionService {
         final response = await supabase
             .from('users')
             .select('role')
-            .eq('id', user.id)  // Changed from 'uid' to 'id' to match database schema
+            .eq('uid', user.id)  // Changed from 'uid' to 'id' to match database schema
             .maybeSingle();
 
         if (kDebugMode) {

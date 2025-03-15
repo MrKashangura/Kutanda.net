@@ -41,7 +41,7 @@ class ContentModerationService {
               'moderator_id': moderatorId,
               'approved_at': DateTime.now().toIso8601String()
             })
-            .eq('id', auctionId);
+            .eq('uid', auctionId);
         
         log('✅ Auction approved: $auctionId');
       } else {
@@ -54,7 +54,7 @@ class ContentModerationService {
               'rejection_reason': rejectionReason,
               'rejected_at': DateTime.now().toIso8601String()
             })
-            .eq('id', auctionId);
+            .eq('uid', auctionId);
         
         log('✅ Auction rejected: $auctionId');
       }
@@ -100,7 +100,7 @@ class ContentModerationService {
               'moderation_notes': moderationNotes,
               'moderated_at': DateTime.now().toIso8601String()
             })
-            .eq('id', reviewId);
+            .eq('uid', reviewId);
         
         log('✅ Review kept visible: $reviewId');
       } else {
@@ -112,7 +112,7 @@ class ContentModerationService {
               'moderation_notes': moderationNotes,
               'moderated_at': DateTime.now().toIso8601String()
             })
-            .eq('id', reviewId);
+            .eq('uid', reviewId);
         
         log('✅ Review hidden: $reviewId');
       }
@@ -147,7 +147,7 @@ class ContentModerationService {
             final auctionDetails = await _supabase
                 .from('auctions')
                 .select('title, description, seller_id, starting_price')
-                .eq('id', contentId)
+                .eq('uid', contentId)
                 .maybeSingle();
             
             if (auctionDetails != null) {
@@ -159,7 +159,7 @@ class ContentModerationService {
             final reviewDetails = await _supabase
                 .from('reviews')
                 .select('content, rating, author_id')
-                .eq('id', contentId)
+                .eq('uid', contentId)
                 .maybeSingle();
             
             if (reviewDetails != null) {
@@ -171,7 +171,7 @@ class ContentModerationService {
             final userDetails = await _supabase
                 .from('users')
                 .select('email, display_name')
-                .eq('id', contentId)
+                .eq('uid', contentId)
                 .maybeSingle();
             
             if (userDetails != null) {
@@ -183,7 +183,7 @@ class ContentModerationService {
             final messageDetails = await _supabase
                 .from('ticket_messages')
                 .select('content, sender_id')
-                .eq('id', contentId)
+                .eq('uid', contentId)
                 .maybeSingle();
             
             if (messageDetails != null) {
@@ -265,7 +265,7 @@ class ContentModerationService {
       await _supabase
           .from('users')
           .update(updateData)
-          .eq('id', userId);
+          .eq('uid', userId);
       
       log('✅ User moderated: $userId, action: $action');
       return true;

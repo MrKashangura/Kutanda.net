@@ -21,7 +21,7 @@ class RoleService {
           final userResponse = await supabase
               .from('users')
               .select('role')
-              .eq('id', user.id)
+              .eq('uid', user.id)
               .maybeSingle();
               
           if (userResponse != null) {
@@ -102,7 +102,7 @@ class RoleService {
         'document_urls': documentUrls,
         'kyc_status': 'pending',
         'updated_at': DateTime.now().toIso8601String()
-      }).eq('id', sellerRecord['id']);
+      }).eq('uid', sellerRecord['id']);
       
       log("✅ Seller verification request submitted successfully");
       return true;
