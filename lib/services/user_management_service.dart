@@ -18,7 +18,7 @@ class UserManagementService {
     try {
       PostgrestFilterBuilder query = _supabase
           .from('users')
-          .select('id, email, display_name, role, created_at, is_reported, is_suspended, is_banned');
+          .select('uid, email, display_name, role, created_at, is_reported, is_suspended, is_banned');
       
       // Apply filters
       if (searchQuery != null && searchQuery.isNotEmpty) {
@@ -55,7 +55,7 @@ class UserManagementService {
       final userResponse = await _supabase
           .from('users')
           .select('*')
-          .eq('uid', userId)
+          .eq('id', userId)
           .single();
       
       // Get the user's KYC status if they're a seller
@@ -68,25 +68,25 @@ class UserManagementService {
       // Get the user's activity statistics
       final auctionsCreated = await _supabase
           .from('auctions')
-          .select('id')
+          .select('uid')
           .eq('seller_id', userId)
           .count();
       
       final bidsPlaced = await _supabase
           .from('bids')
-          .select('id')
+          .select('uid')
           .eq('bidder_id', userId)
           .count();
       
       final reviewsReceived = await _supabase
           .from('reviews')
-          .select('id')
+          .select('uid')
           .eq('user_id', userId)
           .count();
       
       final supportTickets = await _supabase
           .from('support_tickets')
-          .select('id, status')
+          .select('uid, status')
           .eq('user_id', userId);
       
       // Count tickets by status
@@ -201,7 +201,7 @@ class UserManagementService {
             'suspension_reason': reason,
             'suspended_at': DateTime.now().toIso8601String(),
           })
-          .eq('uid', userId);
+          .eq('id', userId);
       
       // Add to user action history
       await _supabase
@@ -238,7 +238,7 @@ class UserManagementService {
             'unsuspended_by': csrId,
             'unsuspended_at': DateTime.now().toIso8601String(),
           })
-          .eq('uid', userId);
+          .eq('id', userId);
       
       // Add to user action history
       await _supabase
@@ -290,7 +290,7 @@ class UserManagementService {
             'ban_reason': reason,
             'banned_at': DateTime.now().toIso8601String(),
           })
-          .eq('uid', userId);
+          .eq('id', userId);
       
       // Add to user action history
       await _supabase
@@ -325,7 +325,7 @@ class UserManagementService {
             'unbanned_by': csrId,
             'unbanned_at': DateTime.now().toIso8601String(),
           })
-          .eq('uid', userId);
+          .eq('id', userId);
       
       // Add to user action history
       await _supabase
@@ -553,7 +553,7 @@ class UserManagementService {
       // Check if permissions already exist
       final existingPermissions = await _supabase
           .from('csr_permissions')
-          .select('id')
+          .select('uid')
           .eq('user_id', csrId)
           .maybeSingle();
       
@@ -590,7 +590,7 @@ class UserManagementService {
             'deactivation_reason': reason,
             'deactivated_at': DateTime.now().toIso8601String(),
           })
-          .eq('uid', csrId)
+          .eq('id', csrId)
           .eq('role', 'csr');
       
       // Add to user action history
@@ -624,7 +624,7 @@ class UserManagementService {
             'reactivation_reason': reason,
             'reactivated_at': DateTime.now().toIso8601String(),
           })
-          .eq('uid', csrId)
+          .eq('id', csrId)
           .eq('role', 'csr');
       
       // Add to user action history

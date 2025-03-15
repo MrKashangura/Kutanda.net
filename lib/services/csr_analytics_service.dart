@@ -221,7 +221,7 @@ class CsrAnalyticsService {
     try {
       PostgrestFilterBuilder query = _supabase
           .from('support_tickets')
-          .select('id, created_at, last_updated, status')
+          .select('uid, created_at, last_updated, status')
           .eq('assigned_csr_id', csrId);
       
       // Filter by date range if specified
@@ -281,7 +281,7 @@ class CsrAnalyticsService {
       // Get ticket statuses
       PostgrestFilterBuilder query = _supabase
           .from('support_tickets')
-          .select('id, status, priority, type')
+          .select('uid, status, priority, type')
           .eq('assigned_csr_id', csrId);
       
       // Filter by date range if specified
@@ -367,7 +367,7 @@ class CsrAnalyticsService {
       // First get all CSRs
       final csrs = await _supabase
           .from('users')
-          .select('id, email, display_name')
+          .select('uid, email, display_name')
           .eq('role', 'csr');
       
       List<Map<String, dynamic>> results = [];
@@ -533,12 +533,12 @@ class CsrAnalyticsService {
       if (csrIds == null || csrIds.isEmpty) {
         csrs = await _supabase
             .from('users')
-            .select('id, email, display_name')
+            .select('uid, email, display_name')
             .eq('role', 'csr');
       } else {
         csrs = await _supabase
             .from('users')
-            .select('id, email, display_name')
+            .select('uid, email, display_name')
             .filter('id', 'in', csrIds);  // Using filter with 'in' operator for list of values
       }
       
@@ -555,7 +555,7 @@ class CsrAnalyticsService {
         // Get all tickets in the date range
         final tickets = await _supabase
             .from('support_tickets')
-            .select('id, created_at, last_updated, status')
+            .select('uid, created_at, last_updated, status')
             .eq('assigned_csr_id', csrId)
             .gte('created_at', startDate.toIso8601String())
             .lte('created_at', endDate.toIso8601String());
@@ -695,7 +695,7 @@ class CsrAnalyticsService {
       // Get all CSRs
       final csrs = await _supabase
           .from('users')
-          .select('id, email, display_name')
+          .select('uid, email, display_name')
           .eq('role', 'csr');
       
       // Get ticket counts for each CSR
@@ -708,7 +708,7 @@ class CsrAnalyticsService {
         // Count active tickets (open, inProgress, pendingUser)
         final activeTicketsResult = await _supabase
             .from('support_tickets')
-            .select('id')
+            .select('uid')
             .eq('assigned_csr_id', csrId)
             .inFilter('status', ['open', 'inProgress', 'pendingUser']);
         
@@ -718,7 +718,7 @@ class CsrAnalyticsService {
         // Count all tickets
         final allTicketsResult = await _supabase
             .from('support_tickets')
-            .select('id')
+            .select('uid')
             .eq('assigned_csr_id', csrId);
         
         // Fixed: Using length instead of count
@@ -748,7 +748,7 @@ class CsrAnalyticsService {
       
       final unassignedTicketsResult = await _supabase
           .from('support_tickets')
-          .select('id')
+          .select('uid')
           .isFilter('assigned_csr_id', null);
       
       // Fixed: Using length instead of count

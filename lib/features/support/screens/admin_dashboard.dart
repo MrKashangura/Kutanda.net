@@ -46,7 +46,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         final userData = await _supabase
             .from('users')
             .select('display_name, email')
-            .eq('uid', user.id)
+            .eq('id', user.id)
             .maybeSingle();
             
         if (userData != null && mounted) {
@@ -60,83 +60,118 @@ class _AdminDashboardState extends State<AdminDashboard> {
     }
   }
 
-  Future<void> _loadDashboardData() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+Future<void> _loadDashboardData() async {
+  setState(() {
+    _isLoading = true;
+    _error = null;
+  });
 
+  Map<String, dynamic> stats = {
+    'totalUsers': 0,
+    'buyers': 0,
+    'sellers': 0,
+    'pendingVerifications': 0,
+    'pendingAuctions': 0,
+    'openTickets': 0,
+    'pendingReports': 0,
+  };
+
+  try {
+    // Try each query separately with individual error handling
     try {
       // Fetch total users count
       final usersResponse = await _supabase.from('users').select('id');
-      final totalUsers = usersResponse.length;
-      
-      // Fetch users by role
+      stats['totalUsers'] = usersResponse.length;
+    } catch (e) {
+      log('Error fetching total users: $e');
+    }
+
+    try {
+      // Fetch buyers count
       final buyersResponse = await _supabase
           .from('users')
-          .select('id')
+          .select('uid')
           .eq('role', 'buyer');
-      final buyers = buyersResponse.length;
-      
+      stats['buyers'] = buyersResponse.length;
+    } catch (e) {
+      log('Error fetching buyers: $e');
+    }
+
+    try {
+      // Fetch sellers count
       final sellersResponse = await _supabase
           .from('users')
-          .select('id')
+          .select('uid')
           .eq('role', 'seller');
-      final sellers = sellersResponse.length;
-      
+      stats['sellers'] = sellersResponse.length;
+    } catch (e) {
+      log('Error fetching sellers: $e');
+    }
+
+    try {
       // Fetch pending verifications count
       final pendingVerificationsResponse = await _supabase
           .from('sellers')
-          .select('id')
+          .select('uid')
           .eq('kyc_status', 'pending');
-      final pendingVerifications = pendingVerificationsResponse.length;
-      
+      stats['pendingVerifications'] = pendingVerificationsResponse.length;
+    } catch (e) {
+      log('Error fetching pending verifications: $e');
+    }
+
+    try {
       // Fetch pending auctions count
       final pendingAuctionsResponse = await _supabase
           .from('auctions')
-          .select('id')
+          .select('uid')
           .eq('is_approved', false)
           .eq('is_active', true);
-      final pendingAuctions = pendingAuctionsResponse.length;
-      
+      stats['pendingAuctions'] = pendingAuctionsResponse.length;
+    } catch (e) {
+      log('Error fetching pending auctions: $e');
+    }
+
+    try {
       // Fetch open tickets count
       final openTicketsResponse = await _supabase
           .from('support_tickets')
-          .select('id')
+          .select('uid')
           .eq('status', 'open');
-      final openTickets = openTicketsResponse.length;
-      
+      stats['openTickets'] = openTicketsResponse.length;
+    } catch (e) {
+      log('Error fetching open tickets: $e');
+    }
+
+    try {
       // Fetch pending reports count
       final pendingReportsResponse = await _supabase
           .from('content_reports')
-          .select('id')
+          .select('uid')
           .eq('status', 'pending');
-      final pendingReports = pendingReportsResponse.length;
-
-      // Load recent activity
-      await _loadRecentActivity();
-
-      setState(() {
-        _dashboardStats = {
-          'totalUsers': totalUsers,
-          'buyers': buyers,
-          'sellers': sellers,
-          'pendingVerifications': pendingVerifications,
-          'pendingAuctions': pendingAuctions,
-          'openTickets': openTickets,
-          'pendingReports': pendingReports,
-        };
-        _isLoading = false;
-      });
+      stats['pendingReports'] = pendingReportsResponse.length;
     } catch (e) {
-      log('Error loading dashboard data: $e');
-      setState(() {
-        _error = 'Error loading dashboard data. Please try again.';
-        _isLoading = false;
-      });
+      log('Error fetching pending reports: $e');
     }
+
+    // Load recent activity
+    try {
+      await _loadRecentActivity();
+    } catch (e) {
+      log('Error loading recent activity: $e');
+    }
+
+    setState(() {
+      _dashboardStats = stats;
+      _isLoading = false;
+    });
+  } catch (e) {
+    log('Error loading dashboard data: $e');
+    setState(() {
+      _error = 'Error loading dashboard data. Please try again.';
+      _isLoading = false;
+    });
   }
-  
+}
   Future<void> _loadRecentActivity() async {
     try {
       // Get the most recent moderation logs

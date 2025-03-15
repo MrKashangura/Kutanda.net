@@ -73,7 +73,7 @@ class AuctionRepository {
       final response = await _supabase
           .from('auctions')
           .select()
-          .eq('uid', auctionId)
+          .eq('id', auctionId)
           .maybeSingle();
       
       if (response == null) return null;
@@ -90,7 +90,7 @@ class AuctionRepository {
       await _supabase
           .from('auctions')
           .update(auction.toMap())
-          .eq('uid', auction.id);
+          .eq('id', auction.id);
       
       log("✅ Auction Updated: ${auction.id}");
       return true;
@@ -106,7 +106,7 @@ class AuctionRepository {
       await _supabase
           .from('auctions')
           .delete()
-          .eq('uid', auctionId);
+          .eq('id', auctionId);
       
       log("✅ Auction Deleted: $auctionId");
       return true;
@@ -145,7 +145,7 @@ class AuctionRepository {
         'highest_bid': bidAmount,
         'highest_bidder_id': bidderId,
         'updated_at': DateTime.now().toIso8601String(),
-      }).eq('uid', auctionId);
+      }).eq('id', auctionId);
 
       log("✅ Bid Placed: $bidAmount by $bidderId on auction $auctionId");
       return true;

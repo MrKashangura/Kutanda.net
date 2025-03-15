@@ -67,7 +67,7 @@ class ProfileScreenState extends State<ProfileScreen> {
       final userData = await _supabase
           .from('profiles')
           .select()
-          .eq('uid', user.id)
+          .eq('id', user.id)
           .maybeSingle();
           
       if (userData != null) {
@@ -176,7 +176,7 @@ class ProfileScreenState extends State<ProfileScreen> {
         'bio': _bioController.text,
         'updated_at': DateTime.now().toIso8601String(),
         if (profileImageUrl != null) 'avatar_url': profileImageUrl,
-      }).eq('uid', user.id);
+      }).eq('id', user.id);
       
       if (!mounted) return;
       

@@ -10,75 +10,41 @@ class AuthEmailService {
 
   /// Sign in with email and password
   Future<Map<String, dynamic>> signInWithEmail(String email, String password) async {
+  try {
+    // Log the actual auth response
+    print('Attempting login for: $email');
+    
+    final response = await _supabase.auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
+    
+    final user = response.user;
+    print('Auth response: ${user?.id}');
+    
+    if (user == null) {
+      return {'success': false, 'message': 'Invalid login credentials'};
+    }
+    
+    // Get role from users table with detailed error handling
     try {
-      // Attempt to sign in with email and password
-      final AuthResponse response = await _supabase.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-      
-      final User? user = response.user;
-      
-      if (user == null) {
-        return {
-          'success': false,
-          'message': 'Invalid email or password',
-        };
-      }
-      
-      // Get the user's role from the database
-      final userDataResponse = await _supabase
+      final userData = await _supabase
           .from('users')
           .select('role')
-          .eq('uid', user.id)
-          .maybeSingle();
+          .eq('uid', user.id) // Verify this column name!
+          .single();
       
-      if (userDataResponse == null) {
-        // If user record doesn't exist, create one
-        await _supabase.from('users').insert({
-          'id': user.id,
-          'email': user.email,
-          'display_name': user.email?.split('@')[0],
-          'role': 'buyer', // Default role
-          'auth_provider': 'email',
-          'created_at': DateTime.now().toIso8601String(),
-        });
-        
-        // Also create a buyer profile
-        await _supabase.from('buyers').insert({
-          'user_id': user.id,
-          'is_active': true,
-          'created_at': DateTime.now().toIso8601String(),
-        });
-        
-        // Save session with default role
-        await SessionService.saveUserSession(user.id, 'buyer');
-        
-        return {
-          'success': true,
-          'user': user,
-          'role': 'buyer',
-        };
-      }
-      
-      final String role = userDataResponse['role'];
-      
-      // Save the session
-      await SessionService.saveUserSession(user.id, role);
-      
-      return {
-        'success': true,
-        'user': user,
-        'role': role,
-      };
+      print('User data: $userData');
+      return {'success': true, 'role': userData['role']};
     } catch (e) {
-      log('❌ Email sign in error: $e');
-      return {
-        'success': false,
-        'message': 'Error signing in: $e',
-      };
+      print('Role lookup error: $e');
+      return {'success': false, 'message': 'Failed to retrieve user role'};
     }
+  } catch (e) {
+    print('Auth error: $e');
+    return {'success': false, 'message': e.toString()};
   }
+}
 
   /// Sign up with email and password
   Future<Map<String, dynamic>> signUpWithEmail(

@@ -1,6 +1,8 @@
 // lib/config/routes.dart
 import 'package:flutter/material.dart';
 
+import '../features/auctions/screens/buyer_dashboard.dart';
+import '../features/auctions/screens/seller_dashboard.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/support/screens/admin_analytics_screen.dart';
 import '../features/support/screens/admin_content_moderation_screen.dart';
@@ -21,6 +23,8 @@ import '../features/support/screens/ticket_detail_screen.dart';
 final Map<String, WidgetBuilder> appRoutes = {
   // Auth routes
   '/login': (context) => const LoginScreen(),
+  '/seller_dashboard': (context) => SellerDashboard(),
+  '/buyer_dashboard': (context) => BuyerDashboard(),
   
   // Admin routes
   '/admin_dashboard': (context) => const AdminDashboard(),

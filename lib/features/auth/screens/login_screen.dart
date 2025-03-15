@@ -1,7 +1,6 @@
 // lib/features/auth/screens/login_screen.dart
 import 'package:flutter/material.dart';
 
-import '../../../core/utils/constants.dart';
 import '../../../shared/services/session_service.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/custom_textfield.dart';
@@ -105,6 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _errorMessage = result['message']);
       }
     } catch (e) {
+      print('Login error: $e');
       setState(() => _errorMessage = 'An unexpected error occurred. Please try again.');
     } finally {
       if (mounted) {
@@ -155,27 +155,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Logo
                 Image.asset(
                   'lib/assets/images/KutandaLogo.png',
-                  height: 120,
+                  height: 420,
                 ),
-                
-                const SizedBox(height: 32),
-                
-                // App Name
-                Text(
-                  AppStrings.appName,
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                
-                const SizedBox(height: 8),
                 
                 // Tagline
                 Text(
-                  'Your green marketplace for rare plants',
+                  'Your green marketplace',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 24,
                     color: Colors.grey[600],
                   ),
                 ),

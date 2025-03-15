@@ -52,7 +52,7 @@ class AuctionService {
   /// Update an auction
   Future<void> updateAuction(Auction auction) async {
     try {
-      await supabase.from('auctions').update(auction.toMap()).eq('uid', auction.id);
+      await supabase.from('auctions').update(auction.toMap()).eq('id', auction.id);
       log("✅ Auction Updated: ${auction.id}");
     } catch (e, stackTrace) {
       log("❌ Error Updating Auction: $e", error: e, stackTrace: stackTrace);
@@ -63,7 +63,7 @@ class AuctionService {
   /// Delete an auction
   Future<void> deleteAuction(String auctionId) async {
     try {
-      await supabase.from('auctions').delete().eq('uid', auctionId);
+      await supabase.from('auctions').delete().eq('id', auctionId);
       log("✅ Auction Deleted: $auctionId");
     } catch (e, stackTrace) {
       log("❌ Error Deleting Auction: $e", error: e, stackTrace: stackTrace);
@@ -80,7 +80,7 @@ class AuctionService {
       final auction = await supabase
           .from('auctions')
           .select()
-          .eq('uid', auctionId)
+          .eq('id', auctionId)
           .maybeSingle();
 
       if (auction == null) {
@@ -113,7 +113,7 @@ class AuctionService {
       await supabase.from('auctions').update({
         'highest_bid': bidAmount,
         'highest_bidder_id': bidderId,
-      }).eq('uid', auctionId);
+      }).eq('id', auctionId);
 
       // Tag the user with OneSignal for future notifications
       await _oneSignalService.initialize();
@@ -166,8 +166,8 @@ Future<void> _handleOutbid(Map<String, dynamic> bid, String userId) async {
     // Get auction details
     final auction = await supabase
         .from('auctions')
-        .select('id, title, seller_id')
-        .eq('uid', bid['auction_id'])
+        .select('uid, title, seller_id')
+        .eq('id', bid['auction_id'])
         .maybeSingle();
     
     if (auction != null) {
@@ -232,7 +232,7 @@ Future<void> _handleOutbid(Map<String, dynamic> bid, String userId) async {
         await supabase
             .from('auctions')
             .update({'ending_notified': true})
-            .eq('uid', auction['id']);
+            .eq('id', auction['id']);
         
         log("📣 Ending soon notifications sent for auction: ${auction['id']}");
       }
@@ -257,7 +257,7 @@ Future<void> _handleOutbid(Map<String, dynamic> bid, String userId) async {
         await supabase
             .from('auctions')
             .update({'is_active': false})
-            .eq('uid', auction['id']);
+            .eq('id', auction['id']);
         
         // If there's a highest bidder, notify them
         if (auction['highest_bidder_id'] != null) {
