@@ -9,6 +9,7 @@ import '../../../shared/services/session_service.dart';
 class AuthGoogleService {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
+    clientId: '349797847699-i2qd44k7428l2pmcjv9j3ir6jfg5mq0t.apps.googleusercontent.com',
   );
   
   final SupabaseClient _supabase = Supabase.instance.client;
