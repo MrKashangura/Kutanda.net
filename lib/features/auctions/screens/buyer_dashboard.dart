@@ -2,15 +2,18 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/utils/constants.dart';
+import '../../../core/utils/helpers.dart';
 import '../../../data/models/auction_model.dart';
-import '../../../services/api_service.dart';
-import '../../../shared/services/onesignal_service.dart';
 import '../../../shared/services/role_service.dart';
 import '../../../shared/services/session_service.dart';
 import '../../../shared/widgets/bottom_navigation.dart';
 import '../../auth/screens/login_screen.dart';
 import '../../profile/screens/kyc_submission_screen.dart';
 import '../services/auction_service.dart';
+import '../widgets/auction_card.dart';
+import '../widgets/fixed_price_card.dart';
+import 'auction_detail_screen.dart';
 import 'seller_dashboard.dart';
 
 class BuyerDashboard extends StatefulWidget {
@@ -20,16 +23,62 @@ class BuyerDashboard extends StatefulWidget {
   State<BuyerDashboard> createState() => _BuyerDashboardState();
 }
 
-class _BuyerDashboardState extends State<BuyerDashboard> {
+class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProviderStateMixin {
   final ApiService _apiService = ApiService();
   final RoleService _roleService = RoleService();
   final AuctionService _auctionService = AuctionService();
   final SupabaseClient supabase = Supabase.instance.client;
   
+  late TabController _tabController;
   bool _isLoading = false;
   NavDestination _currentDestination = NavDestination.dashboard;
   String _searchQuery = '';
   bool _showOnlyActive = true;
+  
+  // Filters
+  double _minPrice = 0.0;
+  double _maxPrice = 1000.0;
+  List<String> _selectedCategories = [];
+  String? _sortOption;
+  
+  // Watchlist
+  List<String> _watchlistedAuctions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _loadWatchlist();
+  }
+  
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadWatchlist() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user != null) {
+        final response = await supabase
+            .from('watchlist')
+            .select('item_id')
+            .eq('user_id', user.id)
+            .eq('item_type', 'auction');
+        
+        if (mounted) {
+          setState(() {
+            _watchlistedAuctions = List<String>.from(
+              response.map((item) => item['item_id'] as String)
+            );
+          });
+        }
+      }
+    } catch (e) {
+      // Handle error silently
+    }
+  }
 
   Future<void> _switchToSeller() async {
     setState(() => _isLoading = true);
@@ -108,39 +157,302 @@ class _BuyerDashboardState extends State<BuyerDashboard> {
     }
   }
 
-Future<void> _logout() async {
-  setState(() => _isLoading = true); // Show loading indicator
-  
-  try {
-    // Clear OneSignal data first if you're using it
-    final oneSignalService = OneSignalService();
-    await oneSignalService.clearUserData();
+  Future<void> _logout() async {
+    setState(() => _isLoading = true);
     
-    // Clear session using only SessionService to avoid double signOut calls
-    await SessionService.clearSession();
-    
-    if (!mounted) return;
-    
-    // Navigate to login screen
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-      (route) => false, // Remove all previous routes
-    );
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error logging out: $e')),
+    try {
+      // Show loading indicator
+      if (!mounted) return;
+      
+      // Use a local context variable that won't be used after the async gap
+      BuildContext localContext = context;
+      
+      showDialog(
+        context: localContext,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
       );
-      setState(() => _isLoading = false); // Hide loading indicator
+      
+      await supabase.auth.signOut();
+      await SessionService.clearSession();
+      
+      if (!mounted) return;
+      
+      // Close loading dialog
+      Navigator.of(localContext).pop();
+      
+      Navigator.pushReplacement(
+        localContext,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      
+      // Try to close dialog if open
+      Navigator.of(context, rootNavigator: true).pop();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error during logout: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
-}
+
   Stream<List<Auction>> _getAuctionsStream() {
     if (_showOnlyActive) {
       return _auctionService.getActiveAuctions();
     } else {
       return _auctionService.getAllAuctions();
     }
+  }
+  
+  Future<void> _toggleWatchlist(String auctionId) async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+      
+      final isWatchlisted = _watchlistedAuctions.contains(auctionId);
+      
+      if (isWatchlisted) {
+        // Remove from watchlist
+        await supabase
+            .from('watchlist')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('item_id', auctionId);
+        
+        setState(() {
+          _watchlistedAuctions.remove(auctionId);
+        });
+      } else {
+        // Add to watchlist
+        await supabase.from('watchlist').insert({
+          'user_id': user.id,
+          'item_id': auctionId,
+          'item_type': 'auction',
+          'created_at': DateTime.now().toIso8601String(),
+        });
+        
+        setState(() {
+          _watchlistedAuctions.add(auctionId);
+        });
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isWatchlisted
+                ? 'Removed from watchlist'
+                : 'Added to watchlist'
+          ),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error updating watchlist: $e')),
+      );
+    }
+  }
+  
+  void _showFilterDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Filter Auctions',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                
+                // Price Range
+                const Text('Price Range:'),
+                RangeSlider(
+                  values: RangeValues(_minPrice, _maxPrice),
+                  min: 0,
+                  max: 1000,
+                  divisions: 20,
+                  labels: RangeLabels(
+                    '\$${_minPrice.toInt()}',
+                    '\$${_maxPrice.toInt()}'
+                  ),
+                  onChanged: (values) {
+                    setState(() {
+                      _minPrice = values.start;
+                      _maxPrice = values.end;
+                    });
+                  },
+                ),
+                
+                // Categories
+                const Text('Categories:'),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    FilterChip(
+                      label: const Text('Flowers'),
+                      selected: _selectedCategories.contains('Flowers'),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategories.add('Flowers');
+                          } else {
+                            _selectedCategories.remove('Flowers');
+                          }
+                        });
+                      },
+                    ),
+                    FilterChip(
+                      label: const Text('Trees'),
+                      selected: _selectedCategories.contains('Trees'),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategories.add('Trees');
+                          } else {
+                            _selectedCategories.remove('Trees');
+                          }
+                        });
+                      },
+                    ),
+                    FilterChip(
+                      label: const Text('Succulents'),
+                      selected: _selectedCategories.contains('Succulents'),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategories.add('Succulents');
+                          } else {
+                            _selectedCategories.remove('Succulents');
+                          }
+                        });
+                      },
+                    ),
+                    FilterChip(
+                      label: const Text('Herbs'),
+                      selected: _selectedCategories.contains('Herbs'),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategories.add('Herbs');
+                          } else {
+                            _selectedCategories.remove('Herbs');
+                          }
+                        });
+                      },
+                    ),
+                    FilterChip(
+                      label: const Text('Indoor'),
+                      selected: _selectedCategories.contains('Indoor'),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategories.add('Indoor');
+                          } else {
+                            _selectedCategories.remove('Indoor');
+                          }
+                        });
+                      },
+                    ),
+                    FilterChip(
+                      label: const Text('Outdoor'),
+                      selected: _selectedCategories.contains('Outdoor'),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategories.add('Outdoor');
+                          } else {
+                            _selectedCategories.remove('Outdoor');
+                          }
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                
+                // Sort by
+                const SizedBox(height: 8),
+                const Text('Sort by:'),
+                DropdownButton<String>(
+                  isExpanded: true,
+                  value: _sortOption,
+                  hint: const Text('Select an option'),
+                  onChanged: (value) {
+                    setState(() {
+                      _sortOption = value;
+                    });
+                  },
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'newest',
+                      child: Text('Newest'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'ending_soon',
+                      child: Text('Ending Soon'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'price_low',
+                      child: Text('Price: Low to High'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'price_high',
+                      child: Text('Price: High to Low'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'most_bids',
+                      child: Text('Most Bids'),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 16),
+                
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _minPrice = 0;
+                          _maxPrice = 1000;
+                          _selectedCategories = [];
+                          _sortOption = null;
+                        });
+                      },
+                      child: const Text('Reset'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        // Apply filters
+                        Navigator.pop(context);
+                        // Refresh auctions with new filters
+                        this.setState(() {});
+                      },
+                      child: const Text('Apply Filters'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -159,221 +471,83 @@ Future<void> _logout() async {
             onPressed: _isLoading ? null : _logout,
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: "All Auctions"),
+            Tab(text: "Fixed Price"),
+            Tab(text: "Watchlist"),
+          ],
+        ),
       ),
-      body: Column(
-        children: [
-          // Search and filter area
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
               children: [
-                TextField(
-                  decoration: const InputDecoration(
-                    hintText: 'Search plants...',
-                    prefixIcon: Icon(Icons.search),
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      _searchQuery = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: SwitchListTile(
-                        title: const Text('Active auctions only'),
-                        value: _showOnlyActive,
+                // Search and filter area
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Search plants...',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.filter_list),
+                            onPressed: _showFilterDialog,
+                            tooltip: 'Filter',
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
                         onChanged: (value) {
                           setState(() {
-                            _showOnlyActive = value;
+                            _searchQuery = value;
                           });
                         },
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
                       ),
-                    ),
-                    TextButton.icon(
-                      onPressed: () {
-                        // Show more filter options
-                      },
-                      icon: const Icon(Icons.filter_list),
-                      label: const Text('Filters'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          
-          // Auction listings
-          Expanded(
-            child: StreamBuilder<List<Auction>>(
-              stream: _getAuctionsStream(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Error: ${snapshot.error}'),
-                  );
-                }
-                
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(
-                    child: Text('No auctions available'),
-                  );
-                }
-                
-                final auctions = snapshot.data!;
-                
-                // Filter by search query if provided
-                final filteredAuctions = _searchQuery.isEmpty
-                    ? auctions
-                    : auctions.where((auction) =>
-                        auction.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-                        auction.description.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
-                
-                if (filteredAuctions.isEmpty) {
-                  return const Center(
-                    child: Text('No matching auctions found'),
-                  );
-                }
-                
-                return ListView.builder(
-                  itemCount: filteredAuctions.length,
-                  itemBuilder: (context, index) {
-                    final auction = filteredAuctions[index];
-                    
-                    // Calculate time remaining
-                    final now = DateTime.now();
-                    final difference = auction.endTime.difference(now);
-                    final timeRemaining = difference.isNegative
-                        ? 'Auction ended'
-                        : '${difference.inDays}d ${difference.inHours % 24}h ${difference.inMinutes % 60}m';
-                    
-                    return Card(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      const SizedBox(height: 8),
+                      Row(
                         children: [
-                          // Display the first image if available
-                          if (auction.imageUrls.isNotEmpty)
-                            SizedBox(
-                              height: 200,
-                              width: double.infinity,
-                              child: Image.network(
-                                auction.imageUrls.first,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) {
-                                  return const Center(
-                                    child: Icon(Icons.image_not_supported, size: 50),
-                                  );
-                                },
-                              ),
-                            ),
-                          
-                          Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  auction.title,
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  auction.description,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Current Bid: \$${auction.highestBid.toStringAsFixed(2)}',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.green,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Starting: \$${auction.startingPrice.toStringAsFixed(2)}',
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.end,
-                                      children: [
-                                        Text(
-                                          timeRemaining,
-                                          style: TextStyle(
-                                            color: difference.isNegative ? Colors.red : Colors.blue,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        Text(
-                                          'End: ${auction.endTime.day}/${auction.endTime.month}/${auction.endTime.year}',
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    OutlinedButton.icon(
-                                      onPressed: () {
-                                        // View auction details
-                                      },
-                                      icon: const Icon(Icons.visibility),
-                                      label: const Text('Details'),
-                                    ),
-                                    ElevatedButton.icon(
-                                      onPressed: difference.isNegative
-                                          ? null  // Disable if auction ended
-                                          : () {
-                                              // Place a bid 
-                                              _placeBid(auction);
-                                            },
-                                      icon: const Icon(Icons.gavel),
-                                      label: const Text('Place Bid'),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                          Expanded(
+                            child: SwitchListTile(
+                              title: const Text('Active auctions only'),
+                              value: _showOnlyActive,
+                              onChanged: (value) {
+                                setState(() {
+                                  _showOnlyActive = value;
+                                });
+                              },
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
                             ),
                           ),
                         ],
                       ),
-                    );
-                  },
-                );
-              },
+                    ],
+                  ),
+                ),
+                
+                // Tab content
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      // All Auctions Tab
+                      _buildAuctionsTab(),
+                      
+                      // Fixed Price Tab
+                      _buildFixedPriceTab(),
+                      
+                      // Watchlist Tab
+                      _buildWatchlistTab(),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
       bottomNavigationBar: BottomNavigation(
         currentDestination: _currentDestination,
         onDestinationSelected: (destination) {
@@ -384,6 +558,244 @@ Future<void> _logout() async {
         },
         isSellerMode: false,
       ),
+    );
+  }
+  
+  Widget _buildAuctionsTab() {
+    return StreamBuilder<List<Auction>>(
+      stream: _getAuctionsStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Error: ${snapshot.error}'),
+          );
+        }
+        
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(
+            child: Text('No auctions available'),
+          );
+        }
+        
+        final auctions = snapshot.data!;
+        
+        // Filter by search query if provided
+        final filteredAuctions = _searchQuery.isEmpty
+            ? auctions
+            : auctions.where((auction) =>
+                auction.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                auction.description.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+        
+        // Apply other filters
+        final List<Auction> finalFilteredAuctions = filteredAuctions.where((auction) {
+          // Price filter
+          if (auction.highestBid < _minPrice || auction.highestBid > _maxPrice) {
+            return false;
+          }
+          
+          // Category filter (simplified - would need category field in Auction model)
+          if (_selectedCategories.isNotEmpty) {
+            // Example: check if auction description contains any selected category
+            bool matchesCategory = false;
+            for (final category in _selectedCategories) {
+              if (auction.description.toLowerCase().contains(category.toLowerCase())) {
+                matchesCategory = true;
+                break;
+              }
+            }
+            if (!matchesCategory) return false;
+          }
+          
+          return true;
+        }).toList();
+        
+        // Sort auctions
+        if (_sortOption != null) {
+          switch (_sortOption) {
+            case 'newest':
+              // Would need createdAt field
+              break;
+            case 'ending_soon':
+              finalFilteredAuctions.sort((a, b) => a.endTime.compareTo(b.endTime));
+              break;
+            case 'price_low':
+              finalFilteredAuctions.sort((a, b) => a.highestBid.compareTo(b.highestBid));
+              break;
+            case 'price_high':
+              finalFilteredAuctions.sort((a, b) => b.highestBid.compareTo(a.highestBid));
+              break;
+            case 'most_bids':
+              // Would need bidCount field
+              break;
+          }
+        }
+        
+        if (finalFilteredAuctions.isEmpty) {
+          return const Center(
+            child: Text('No matching auctions found'),
+          );
+        }
+        
+        return ListView.builder(
+          itemCount: finalFilteredAuctions.length,
+          itemBuilder: (context, index) {
+            final auction = finalFilteredAuctions[index];
+            final isWatchlisted = _watchlistedAuctions.contains(auction.id);
+            
+            return AuctionCard(
+              auction: auction,
+              isWatchlisted: isWatchlisted,
+              onWatchlistToggle: () => _toggleWatchlist(auction.id),
+              onTap: () {
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(
+                    builder: (context) => AuctionDetailScreen(auctionId: auction.id),
+                  ),
+                );
+              },
+              onBid: () => _placeBid(auction),
+            );
+          },
+        );
+      },
+    );
+  }
+  
+  Widget _buildFixedPriceTab() {
+    // This would be implemented similarly to the auctions tab but for fixed price listings
+    // For now, using a placeholder
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.store, size: 64, color: Colors.grey),
+          const SizedBox(height: 16),
+          const Text(
+            'Fixed price plants coming soon!',
+            style: TextStyle(fontSize: 18),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Browse plants available for immediate purchase',
+            style: TextStyle(color: Colors.grey),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () {
+              _tabController.animateTo(0); // Switch to auctions tab
+            },
+            child: const Text('Browse Auctions Instead'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildWatchlistTab() {
+    if (_watchlistedAuctions.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.favorite_border, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text(
+              'Your watchlist is empty',
+              style: TextStyle(fontSize: 18),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Add auctions to your watchlist to track them here',
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () {
+                _tabController.animateTo(0); // Switch to auctions tab
+              },
+              child: const Text('Browse Auctions'),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    return StreamBuilder<List<Auction>>(
+      stream: _auctionService.getAllAuctions(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Error: ${snapshot.error}'),
+          );
+        }
+        
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(
+            child: Text('No auctions available'),
+          );
+        }
+        
+        final allAuctions = snapshot.data!;
+        
+        // Filter to only show watchlisted auctions
+        final watchlistedAuctions = allAuctions.where(
+          (auction) => _watchlistedAuctions.contains(auction.id)
+        ).toList();
+        
+        if (watchlistedAuctions.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.favorite_border, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                const Text(
+                  'No matching auctions in your watchlist',
+                  style: TextStyle(fontSize: 18),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    _tabController.animateTo(0); // Switch to auctions tab
+                  },
+                  child: const Text('Browse Auctions'),
+                ),
+              ],
+            ),
+          );
+        }
+        
+        return ListView.builder(
+          itemCount: watchlistedAuctions.length,
+          itemBuilder: (context, index) {
+            final auction = watchlistedAuctions[index];
+            
+            return AuctionCard(
+              auction: auction,
+              isWatchlisted: true,
+              onWatchlistToggle: () => _toggleWatchlist(auction.id),
+              onTap: () {
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(
+                    builder: (context) => AuctionDetailScreen(auctionId: auction.id),
+                  ),
+                );
+              },
+              onBid: () => _placeBid(auction),
+            );
+          },
+        );
+      },
     );
   }
   
