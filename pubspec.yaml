@@ -28,6 +28,7 @@ dependencies:
   flutter_local_notifications: ^13.0.0
   onesignal_flutter: ^5.0.4
   flutter_dotenv: ^5.0.2
+  uni_links: ^0.5.1
   # Authentication
   # UI & Icons
 

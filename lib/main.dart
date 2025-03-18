@@ -1,3 +1,4 @@
+// lib/main.dart
 import 'dart:async';
 import 'dart:developer';
 
@@ -6,22 +7,28 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'config/routes.dart'; // Add this import
+import 'config/routes.dart';
 import 'core/utils/constants.dart';
 import 'features/auth/screens/login_screen.dart';
+import 'features/auth/services/deep_link_handler.dart';
 import 'providers/auth_provider.dart';
 
 void main() {
-  // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Run with error handling
   runZonedGuarded(() async {
     try {
-      // Initialize Supabase first, with proper error handling
-      await initializeSupabase();
+      // Initialize Supabase first, before anything else
+      await Supabase.initialize(
+        url: 'https://dcjycjiqelcftxbymley.supabase.co',
+        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjanljamlxZWxjZnR4YnltbGV5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAyMTIwNTksImV4cCI6MjA1NTc4ODA1OX0.DmLByHHoWeRPusRD2EoYLxxk5F_soscl3jKg7mE4pPM',
+        debug: kDebugMode,
+      );
       
-      // Run the app
+      // Then initialize the deep link handler
+      await DeepLinkHandler().initialize();
+      
+      // Now run the app
       runApp(
         ChangeNotifierProvider(
           create: (_) => AuthProvider(),
@@ -29,41 +36,35 @@ void main() {
         ),
       );
     } catch (e, stackTrace) {
-      log('❌ Critical error: $e', error: e, stackTrace: stackTrace);
-      // Display the error screen
+      log('Critical error: $e', error: e, stackTrace: stackTrace);
       runApp(ErrorApp(error: e.toString()));
     }
   }, (error, stack) {
-    log('❌ Uncaught error: $error', error: error, stackTrace: stack);
-    if (kDebugMode) {
-      print('Stack trace: $stack');
-    }
+    log('Uncaught error: $error', error: error, stackTrace: stack);
   });
 }
-
 /// Initialize Supabase with proper error handling
 Future<void> initializeSupabase() async {
-  if (kDebugMode) {
-    log('Initializing Supabase...');
+  if (Supabase.instance.client.auth.currentSession != null) {
+    // Supabase is already initialized
+    log('Supabase already initialized, skipping initialization');
+    return;
   }
 
   try {
-    // Wait for Supabase initialization to complete before continuing
     await Supabase.initialize(
       url: 'https://dcjycjiqelcftxbymley.supabase.co',
       anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjanljamlxZWxjZnR4YnltbGV5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAyMTIwNTksImV4cCI6MjA1NTc4ODA1OX0.DmLByHHoWeRPusRD2EoYLxxk5F_soscl3jKg7mE4pPM',
       debug: kDebugMode,
     );
-    
-    if (kDebugMode) {
-      log('✅ Supabase initialized successfully');
-    }
+    log('✅ Supabase initialized successfully');
   } catch (e, stackTrace) {
-    log('❌ Supabase initialization error', error: e, stackTrace: stackTrace);
-    if (kDebugMode) {
-      print('Supabase Error: $e');
+    if (e.toString().contains('already initialized')) {
+      log('Supabase already initialized, continuing...');
+      return;
     }
-    rethrow; // Let the caller handle this error
+    log('❌ Supabase initialization error', error: e, stackTrace: stackTrace);
+    rethrow;
   }
 }
 

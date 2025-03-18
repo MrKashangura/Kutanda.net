@@ -37,9 +37,10 @@ class _SocialSignInButtonsState extends State<SocialSignInButtons> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : Image.asset(
-                  'lib/assets/images/g-logo.png',
+                  'assets/images/google_logo.png',
                   height: 24,
                   width: 24,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 24),
                 ),
           label: Text(_isGoogleLoading ? 'Signing in...' : 'Continue with Google'),
           style: ElevatedButton.styleFrom(
@@ -90,11 +91,17 @@ class _SocialSignInButtonsState extends State<SocialSignInButtons> {
     try {
       final result = await _googleService.signInWithGoogle();
       
+      if (!mounted) return;
+      
       widget.onSignInComplete(
-        result['success'],
-        result['message'] ?? '',
+        result['success'] ?? false,
+        result['message'] ?? 'Authentication failed',
         result['isNewUser'] ?? false,
       );
+    } catch (e) {
+      if (mounted) {
+        widget.onSignInComplete(false, 'Error: $e', false);
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -112,11 +119,17 @@ class _SocialSignInButtonsState extends State<SocialSignInButtons> {
     try {
       final result = await _facebookService.signInWithFacebook();
       
+      if (!mounted) return;
+      
       widget.onSignInComplete(
-        result['success'],
-        result['message'] ?? '',
+        result['success'] ?? false,
+        result['message'] ?? 'Authentication failed',
         result['isNewUser'] ?? false,
       );
+    } catch (e) {
+      if (mounted) {
+        widget.onSignInComplete(false, 'Error: $e', false);
+      }
     } finally {
       if (mounted) {
         setState(() {
