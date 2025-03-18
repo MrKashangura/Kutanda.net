@@ -15,6 +15,7 @@ import '../widgets/auction_card.dart';
 import '../widgets/fixed_price_card.dart';
 import 'auction_detail_screen.dart';
 import 'seller_dashboard.dart';
+import '../../../shared/widgets/item_carousel.dart';
 
 class BuyerDashboard extends StatefulWidget {
   const BuyerDashboard({super.key});
@@ -530,6 +531,34 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
                   ),
                 ),
                 
+                // Featured Auctions Carousel
+                StreamBuilder<List<Auction>>(
+                  stream: _auctionService.getActiveAuctions(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const SizedBox(height: 240, child: Center(child: CircularProgressIndicator()));
+                    }
+                    
+                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    
+                    // Get featured auctions - in production we'd have a featured flag
+                    // For now, just take the top 5 with highest bids
+                    final featuredAuctions = List<Auction>.from(snapshot.data!)
+                      ..sort((a, b) => b.highestBid.compareTo(a.highestBid));
+                    final displayedAuctions = featuredAuctions.take(5).toList();
+                    
+                    return ItemCarousel<Auction>(
+                      title: 'Featured Auctions',
+                      items: displayedAuctions,
+                      onItemTap: (auction) {
+                        // Navigate to auction details
+                        // You can implement this navigation later
+                      },
+                    );
+                  },
+                ),
                 // Tab content
                 Expanded(
                   child: TabBarView(
@@ -799,96 +828,82 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
     );
   }
   
-  void _placeBid(Auction auction) {
-    TextEditingController bidController = TextEditingController();
-    final minimumBid = auction.highestBid + auction.bidIncrement;
-    
-    // Use a local context to avoid using context across async gaps
-    final localContext = context;
-    
-    showDialog(
-      context: localContext,
-      builder: (dialogContext) => AlertDialog(
-        title: Text("Place Bid on ${auction.title}"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Current highest bid: \$${auction.highestBid.toStringAsFixed(2)}'),
-            Text('Minimum bid: \$${minimumBid.toStringAsFixed(2)}'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: bidController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: "Your bid amount",
-                prefixText: "\$",
-              ),
-              autofocus: true,
+void _placeBid(Auction auction) {
+  TextEditingController bidController = TextEditingController();
+  final minimumBid = auction.highestBid + auction.bidIncrement;
+  
+  showDialog(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text("Place Bid on ${auction.title}"),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Current highest bid: \${auction.highestBid.toStringAsFixed(2)}'),
+          Text('Minimum bid: \${minimumBid.toStringAsFixed(2)}'),
+          const SizedBox(height: 16),
+          TextField(
+            controller: bidController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: "Your bid amount",
+              prefixText: "\$",
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              // Validate and place bid
-              final bidAmount = double.tryParse(bidController.text);
-              
-              if (bidAmount == null || bidAmount < minimumBid) {
-                // Show error in the dialog context
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  SnackBar(content: Text('Bid must be at least \$${minimumBid.toStringAsFixed(2)}')),
-                );
-                return;
-              }
-              
-              final user = supabase.auth.currentUser;
-              if (user == null) {
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  const SnackBar(content: Text('You must be logged in to place a bid')),
-                );
-                return;
-              }
-              
-              Navigator.pop(dialogContext);
-              
-              // Store context for later use
-              final originalContext = localContext;
-              
-              // Show loading indicator
-              if (!mounted) return;
-              showDialog(
-                context: originalContext,
-                barrierDismissible: false,
-                builder: (_) => const Center(child: CircularProgressIndicator()),
-              );
-              
-              try {
-                await _auctionService.placeBid(auction.id, bidAmount, user.id);
-                
-                if (!mounted) return;
-                Navigator.pop(originalContext); // Close loading dialog
-                
-                ScaffoldMessenger.of(originalContext).showSnackBar(
-                  SnackBar(content: Text('Bid of \$${bidAmount.toStringAsFixed(2)} placed successfully!')),
-                );
-              } catch (e) {
-                if (!mounted) return;
-                Navigator.pop(originalContext); // Close loading dialog
-                
-                ScaffoldMessenger.of(originalContext).showSnackBar(
-                  SnackBar(content: Text('Error placing bid: $e')),
-                );
-              }
-            },
-            child: const Text("Place Bid"),
+            autofocus: true,
           ),
         ],
       ),
-    );
-  }
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text("Cancel"),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            // Validate bid amount
+            final bidAmount = double.tryParse(bidController.text);
+            
+            if (bidAmount == null || bidAmount < minimumBid) {
+              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                SnackBar(content: Text('Bid must be at least \${minimumBid.toStringAsFixed(2)}')),
+              );
+              return;
+            }
+            
+            // Close dialog
+            Navigator.pop(dialogContext);
+            
+            // Show loading indicator
+            showLoadingDialog(context);
+            
+            try {
+              final user = supabase.auth.currentUser;
+              if (user == null) throw Exception('User not logged in');
+              
+              // Place bid using repository
+              final success = await _bidRepository.placeBid(auction.id, bidAmount, user.id);
+              
+              // Close loading dialog
+              if (!mounted) return;
+              Navigator.pop(context);
+              
+              if (success) {
+                showSnackBar(context, 'Bid placed successfully!');
+              } else {
+                showSnackBar(context, 'Failed to place bid. Please try again.');
+              }
+            } catch (e) {
+              // Close loading dialog
+              if (!mounted) return;
+              Navigator.pop(context);
+              
+              showSnackBar(context, 'Error: $e');
+            }
+          },
+          child: const Text("Place Bid"),
+        ),
+      ],
+    ),
+  );
 }
