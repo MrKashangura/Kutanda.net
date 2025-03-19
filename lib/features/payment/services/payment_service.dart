@@ -1,5 +1,5 @@
 // lib/features/payment/services/payment_service.dart
-import 'dart:developer';
+import 'dart:developer' as dev;
 import 'dart:math';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -62,10 +62,10 @@ class PaymentService {
             .eq('id', item['item_id']);
       }
       
-      log('✅ Order created successfully: $orderId');
+      dev.log('✅ Order created successfully: $orderId');
       return orderId;
     } catch (e, stackTrace) {
-      log('❌ Error creating order: $e', error: e, stackTrace: stackTrace);
+      dev.log('❌ Error creating order: $e', error: e, stackTrace: stackTrace);
       return null;
     }
   }
@@ -102,10 +102,10 @@ class PaymentService {
           })
           .eq('id', orderId);
       
-      log('✅ Payment processed successfully: $paymentId');
+      dev.log('✅ Payment processed successfully: $paymentId');
       return true;
     } catch (e, stackTrace) {
-      log('❌ Error processing payment: $e', error: e, stackTrace: stackTrace);
+      dev.log('❌ Error processing payment: $e', error: e, stackTrace: stackTrace);
       return false;
     }
   }
@@ -121,7 +121,7 @@ class PaymentService {
       
       return Map<String, dynamic>.from(order);
     } catch (e, stackTrace) {
-      log('❌ Error getting order details: $e', error: e, stackTrace: stackTrace);
+      dev.log('❌ Error getting order details: $e', error: e, stackTrace: stackTrace);
       return null;
     }
   }
@@ -137,7 +137,7 @@ class PaymentService {
       
       return List<Map<String, dynamic>>.from(orders);
     } catch (e, stackTrace) {
-      log('❌ Error getting user orders: $e', error: e, stackTrace: stackTrace);
+      dev.log('❌ Error getting user orders: $e', error: e, stackTrace: stackTrace);
       return [];
     }
   }
@@ -195,10 +195,10 @@ class PaymentService {
             .eq('id', itemId);
       }
       
-      log('✅ Order cancelled successfully: $orderId');
+      dev.log('✅ Order cancelled successfully: $orderId');
       return true;
     } catch (e, stackTrace) {
-      log('❌ Error cancelling order: $e', error: e, stackTrace: stackTrace);
+      dev.log('❌ Error cancelling order: $e', error: e, stackTrace: stackTrace);
       return false;
     }
   }

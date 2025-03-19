@@ -11,9 +11,9 @@ class OrderConfirmationScreen extends StatefulWidget {
   final String orderId;
   
   const OrderConfirmationScreen({
-    Key? key,
+    super.key,
     required this.orderId,
-  }) : super(key: key);
+  });
 
   @override
   State<OrderConfirmationScreen> createState() => _OrderConfirmationScreenState();
@@ -41,20 +41,18 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
     try {
       final orderDetails = await _paymentService.getOrderDetails(widget.orderId);
       
-      if (orderDetails != null) {
+      if (orderDetails != null && mounted) {
         setState(() {
           _orderDetails = orderDetails;
           _orderItems = orderDetails['order_items'] ?? [];
           _orderStatus = orderDetails['status'] ?? 'Processing';
           _isLoading = false;
         });
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Error loading order details')),
-          );
-          setState(() => _isLoading = false);
-        }
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error loading order details')),
+        );
+        setState(() => _isLoading = false);
       }
     } catch (e) {
       if (mounted) {

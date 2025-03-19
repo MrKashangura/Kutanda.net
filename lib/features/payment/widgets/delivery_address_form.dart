@@ -7,11 +7,11 @@ class DeliveryAddressForm extends StatefulWidget {
   final Function(Map<String, dynamic>) onAddressChanged;
 
   const DeliveryAddressForm({
-    Key? key,
+    super.key,
     required this.formKey,
     required this.initialAddress,
     required this.onAddressChanged,
-  }) : super(key: key);
+  });
 
   @override
   State<DeliveryAddressForm> createState() => _DeliveryAddressFormState();

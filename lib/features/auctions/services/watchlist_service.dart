@@ -154,7 +154,7 @@ class WatchlistService {
       final auctions = await _supabase
           .from('auctions')
           .select()
-          .in_('id', auctionIds);
+          .inFilter('id', auctionIds);
       
       return auctions.map((data) => Auction.fromMap(data)).toList();
     } catch (e, stackTrace) {
@@ -191,7 +191,7 @@ class WatchlistService {
       final listings = await _supabase
           .from('fixed_price_listings')
           .select()
-          .in_('id', listingIds);
+          .inFilter('id', listingIds);
       
       return listings.map((data) => FixedPriceListing.fromMap(data)).toList();
     } catch (e, stackTrace) {

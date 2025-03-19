@@ -1,19 +1,19 @@
-// lib/features/payment/screens/checkout_screen.dart
+// lib/features/auctions/screens/checkout_screen.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/helpers.dart';
 import '../../../data/models/fixed_price_listing_model.dart';
+import '../../../features/payment/screens/order_confirmation_screen.dart';
+import '../../../features/payment/services/payment_service.dart';
+import '../../../features/payment/widgets/delivery_address_form.dart';
+import '../../../features/payment/widgets/payment_method_selector.dart';
 import '../../../shared/widgets/bottom_navigation.dart';
-import '../../auctions/services/cart_service.dart';
-import '../services/payment_service.dart';
-import '../widgets/delivery_address_form.dart';
-import '../widgets/payment_method_selector.dart';
-import 'order_confirmation_screen.dart';
+import '../services/cart_service.dart';
 
 class CheckoutScreen extends StatefulWidget {
-  const CheckoutScreen({Key? key}) : super(key: key);
+  const CheckoutScreen({super.key});
 
   @override
   State<CheckoutScreen> createState() => _CheckoutScreenState();

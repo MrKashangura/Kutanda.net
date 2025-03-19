@@ -101,7 +101,7 @@ class _WatchlistScreenState extends State<WatchlistScreen> with SingleTickerProv
       final auctionsResponse = await _supabase
           .from('auctions')
           .select()
-          .in_('id', _watchlistedAuctionIds);
+          .inFilter('id', _watchlistedAuctionIds);
       
       setState(() {
         _auctions = auctionsResponse
@@ -126,7 +126,7 @@ class _WatchlistScreenState extends State<WatchlistScreen> with SingleTickerProv
       final listingsResponse = await _supabase
           .from('fixed_price_listings')
           .select()
-          .in_('id', _savedFixedPriceIds);
+          .inFilter('id', _savedFixedPriceIds);
       
       setState(() {
         _fixedPriceListings = listingsResponse

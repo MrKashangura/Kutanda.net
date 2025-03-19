@@ -1,160 +1,131 @@
+// lib/shared/services/notification_service.dart
 import 'dart:developer';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationService {
-  static final NotificationService _instance = NotificationService._internal();
-  factory NotificationService() => _instance;
-  NotificationService._internal();
-
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
   bool _isInitialized = false;
 
-  /// Initialize the notification service
-  Future<bool> initialize() async {
-    if (_isInitialized) return true;
+  Future<void> initialize() async {
+    if (_isInitialized) return;
 
-    try {
-      const AndroidInitializationSettings initializationSettingsAndroid =
-          AndroidInitializationSettings('@mipmap/ic_launcher');
-      
-      const InitializationSettings initializationSettings = InitializationSettings(
-        android: initializationSettingsAndroid,
-      );
-      
-      final initialized = await _notificationsPlugin.initialize(
-        initializationSettings,
-      );
-
-      _isInitialized = initialized ?? false;
-      log(_isInitialized 
-          ? '✅ Notification service initialized' 
-          : '⚠️ Notification service initialization returned false');
-      
-      // Request permissions
-      await requestPermissions();
-      
-      return _isInitialized;
-    } catch (e) {
-      log('❌ Failed to initialize notification service: $e');
-      return false;
-    }
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    
+    const DarwinInitializationSettings initializationSettingsIOS =
+        DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+    
+    const InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+      iOS: initializationSettingsIOS,
+    );
+    
+    await _notificationsPlugin.initialize(
+      initializationSettings,
+    );
+    
+    _isInitialized = true;
+    log('✅ Notification service initialized');
   }
 
-  /// Request notification permissions
-  Future<void> requestPermissions() async {
-    final AndroidFlutterLocalNotificationsPlugin? androidPlugin =
-        _notificationsPlugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-    
-    if (androidPlugin != null) {
-      await androidPlugin.requestPermission();
-    }
-  }
-
-  /// Make sure the service is initialized before sending notifications
-  Future<bool> _ensureInitialized({int maxRetries = 3}) async {
-    if (_isInitialized) return true;
-    
-    int retries = 0;
-    bool success = false;
-    
-    while (retries < maxRetries && !success) {
-      success = await initialize();
-      if (!success) {
-        retries++;
-        log('⚠️ Retry initialization: attempt $retries of $maxRetries');
-        await Future.delayed(Duration(seconds: retries));
-      }
-    }
-    
-    return success;
-  }
-
-  /// Show notification when user is outbid
   Future<void> showOutbidNotification(String auctionTitle, double newBidAmount) async {
-    if (!await _ensureInitialized()) {
-      log('❌ Could not initialize notification service, skipping outbid notification');
-      return;
-    }
-
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
+    if (!_isInitialized) await initialize();
+    
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'outbid_channel',
       'Outbid Notifications',
-      channelDescription: 'Notifications for when you are outbid in an auction',
+      channelDescription: 'Notifications for when you get outbid',
       importance: Importance.high,
       priority: Priority.high,
     );
-
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
-
+    
+    const NotificationDetails notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: DarwinNotificationDetails(),
+    );
+    
     await _notificationsPlugin.show(
       0,
-      'Outbid Alert!',
-      'You have been outbid on $auctionTitle. New bid: \$${newBidAmount.toStringAsFixed(2)}',
-      platformChannelSpecifics,
+      'You\'ve been outbid!',
+      'Someone placed a bid of \$${newBidAmount.toStringAsFixed(2)} on $auctionTitle',
+      notificationDetails,
     );
-    
-    log('📣 Sent outbid notification for $auctionTitle');
   }
 
-  /// Show notification when an auction is ending soon
-  Future<void> showAuctionEndingNotification(String auctionTitle) async {
-    if (!await _ensureInitialized()) {
-      log('❌ Could not initialize notification service, skipping auction ending notification');
-      return;
-    }
-
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
-      'auction_ending_channel',
-      'Auction Ending Notifications',
-      channelDescription: 'Notifications for when auctions are ending soon',
+  Future<void> showBidPlacedNotification(String auctionTitle, double bidAmount) async {
+    if (!_isInitialized) await initialize();
+    
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'bid_placed_channel',
+      'Bid Placed Notifications',
+      channelDescription: 'Notifications for when you place a bid',
       importance: Importance.high,
       priority: Priority.high,
     );
-
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
-
+    
+    const NotificationDetails notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: DarwinNotificationDetails(),
+    );
+    
     await _notificationsPlugin.show(
       1,
-      'Auction Ending Soon!',
-      '$auctionTitle is ending soon. Don\'t miss your chance!',
-      platformChannelSpecifics,
+      'Bid Placed Successfully',
+      'Your bid of \$${bidAmount.toStringAsFixed(2)} on $auctionTitle was placed successfully',
+      notificationDetails,
     );
-    
-    log('📣 Sent auction ending notification for $auctionTitle');
   }
 
-  /// Show notification when a user wins an auction
-  Future<void> showAuctionWonNotification(String auctionTitle) async {
-    if (!await _ensureInitialized()) {
-      log('❌ Could not initialize notification service, skipping auction won notification');
-      return;
-    }
-
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
-      'auction_won_channel',
-      'Auction Won Notifications',
-      channelDescription: 'Notifications for when you win an auction',
+  Future<void> showAuctionEndingNotification(String auctionTitle) async {
+    if (!_isInitialized) await initialize();
+    
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'auction_ending_channel',
+      'Auction Ending Notifications',
+      channelDescription: 'Notifications for auctions that are ending soon',
       importance: Importance.high,
       priority: Priority.high,
     );
-
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
-
-    await _notificationsPlugin.show(
-      2,
-      'Congratulations!',
-      'You won the auction for $auctionTitle!',
-      platformChannelSpecifics,
+    
+    const NotificationDetails notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: DarwinNotificationDetails(),
     );
     
-    log('📣 Sent auction won notification for $auctionTitle');
+    await _notificationsPlugin.show(
+      2,
+      'Auction Ending Soon',
+      '$auctionTitle is ending in less than 5 minutes!',
+      notificationDetails,
+    );
+  }
+
+  Future<void> showAuctionWonNotification(String auctionTitle) async {
+    if (!_isInitialized) await initialize();
+    
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'auction_won_channel',
+      'Auction Won Notifications',
+      channelDescription: 'Notifications for auctions you have won',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+    
+    const NotificationDetails notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: DarwinNotificationDetails(),
+    );
+    
+    await _notificationsPlugin.show(
+      3,
+      'Auction Won!',
+      'Congratulations! You\'ve won the auction for $auctionTitle',
+      notificationDetails,
+    );
   }
 }

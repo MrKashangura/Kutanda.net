@@ -8,6 +8,7 @@ import '../../../data/models/auction_model.dart';
 import '../../../shared/services/role_service.dart';
 import '../../../shared/services/session_service.dart';
 import '../../../shared/widgets/bottom_navigation.dart';
+import '../../../shared/widgets/item_carousel.dart';
 import '../../auth/screens/login_screen.dart';
 import '../../profile/screens/kyc_submission_screen.dart';
 import '../services/auction_service.dart';
@@ -15,7 +16,6 @@ import '../widgets/auction_card.dart';
 import '../widgets/fixed_price_card.dart';
 import 'auction_detail_screen.dart';
 import 'seller_dashboard.dart';
-import '../../../shared/widgets/item_carousel.dart';
 
 class BuyerDashboard extends StatefulWidget {
   const BuyerDashboard({super.key});
@@ -828,6 +828,7 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
     );
   }
   
+// lib/features/auctions/screens/buyer_dashboard.dart (partial - just fixing the placeBid method and adding _bidRepository)
 void _placeBid(Auction auction) {
   TextEditingController bidController = TextEditingController();
   final minimumBid = auction.highestBid + auction.bidIncrement;
@@ -840,8 +841,8 @@ void _placeBid(Auction auction) {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Current highest bid: \${auction.highestBid.toStringAsFixed(2)}'),
-          Text('Minimum bid: \${minimumBid.toStringAsFixed(2)}'),
+          Text('Current highest bid: \$${auction.highestBid.toStringAsFixed(2)}'),
+          Text('Minimum bid: \$${minimumBid.toStringAsFixed(2)}'),
           const SizedBox(height: 16),
           TextField(
             controller: bidController,
@@ -866,7 +867,7 @@ void _placeBid(Auction auction) {
             
             if (bidAmount == null || bidAmount < minimumBid) {
               ScaffoldMessenger.of(dialogContext).showSnackBar(
-                SnackBar(content: Text('Bid must be at least \${minimumBid.toStringAsFixed(2)}')),
+                SnackBar(content: Text('Bid must be at least \$${minimumBid.toStringAsFixed(2)}')),
               );
               return;
             }
@@ -875,30 +876,32 @@ void _placeBid(Auction auction) {
             Navigator.pop(dialogContext);
             
             // Show loading indicator
-            showLoadingDialog(context);
+            if (mounted) {
+              showLoadingDialog(context);
+            }
             
             try {
               final user = supabase.auth.currentUser;
               if (user == null) throw Exception('User not logged in');
               
-              // Place bid using repository
-              final success = await _bidRepository.placeBid(auction.id, bidAmount, user.id);
+              // Place bid using auction service instead of repository
+              await _auctionService.placeBid(auction.id, bidAmount, user.id);
               
               // Close loading dialog
               if (!mounted) return;
               Navigator.pop(context);
               
-              if (success) {
+              if (mounted) {
                 showSnackBar(context, 'Bid placed successfully!');
-              } else {
-                showSnackBar(context, 'Failed to place bid. Please try again.');
               }
             } catch (e) {
               // Close loading dialog
               if (!mounted) return;
               Navigator.pop(context);
               
-              showSnackBar(context, 'Error: $e');
+              if (mounted) {
+                showSnackBar(context, 'Error: $e');
+              }
             }
           },
           child: const Text("Place Bid"),
@@ -906,4 +909,5 @@ void _placeBid(Auction auction) {
       ],
     ),
   );
+}
 }
