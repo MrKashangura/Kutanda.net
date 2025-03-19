@@ -2,7 +2,6 @@ class UserModel {
   final String uid;
   final String email;
   final String phone;
-  // Rename role to activeRole for clarity.
   String activeRole; // e.g., "buyer" or "seller"
 
   UserModel({
@@ -17,7 +16,17 @@ class UserModel {
       uid: json['uid'],
       email: json['email'],
       phone: json['phone'],
-      activeRole: json['role'], // assuming backend returns role as 'buyer' or 'seller'
+      activeRole: json['role'] ?? 'buyer', // Add fallback to prevent null errors
     );
+  }
+  
+  // Add this method to properly save to database
+  Map<String, dynamic> toJson() {
+    return {
+      'uid': uid,
+      'email': email,
+      'phone': phone,
+      'role': activeRole, // Map activeRole back to 'role' in the database
+    };
   }
 }

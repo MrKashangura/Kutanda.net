@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/utils/constants.dart';
 import '../../../core/utils/helpers.dart';
 import '../../../data/models/auction_model.dart';
 import '../../../shared/services/role_service.dart';
@@ -13,7 +12,6 @@ import '../../auth/screens/login_screen.dart';
 import '../../profile/screens/kyc_submission_screen.dart';
 import '../services/auction_service.dart';
 import '../widgets/auction_card.dart';
-import '../widgets/fixed_price_card.dart';
 import 'auction_detail_screen.dart';
 import 'seller_dashboard.dart';
 
@@ -25,7 +23,6 @@ class BuyerDashboard extends StatefulWidget {
 }
 
 class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProviderStateMixin {
-  final ApiService _apiService = ApiService();
   final RoleService _roleService = RoleService();
   final AuctionService _auctionService = AuctionService();
   final SupabaseClient supabase = Supabase.instance.client;
@@ -129,7 +126,7 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
       }
       
       // If verified, attempt to switch roles
-      bool success = await _apiService.switchRole('buyer');
+      bool success = await _roleService.switchRole('seller');
       
       if (!mounted) return;
 
@@ -555,6 +552,20 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
                       onItemTap: (auction) {
                         // Navigate to auction details
                         // You can implement this navigation later
+                      },
+                      itemBuilder: (auction) {
+                        return AuctionCard(
+                          auction: auction,
+                          isWatchlisted: _watchlistedAuctions.contains(auction.id),
+                          onWatchlistToggle: () => _toggleWatchlist(auction.id),
+                          onTap: () => Navigator.push(
+                            context, 
+                            MaterialPageRoute(
+                              builder: (context) => AuctionDetailScreen(auctionId: auction.id),
+                            ),
+                          ),
+                          onBid: () => _placeBid(auction),
+                        );
                       },
                     );
                   },
