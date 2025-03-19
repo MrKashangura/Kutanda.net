@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../features/auctions/screens/auction_screen.dart';
 import '../features/auctions/screens/buyer_dashboard.dart';
+import '../features/auctions/screens/checkout_screen.dart';
 import '../features/auctions/screens/create_auction_screen.dart';
 import '../features/auctions/screens/search_explore_screen.dart';
 import '../features/auctions/screens/seller_dashboard.dart';
@@ -43,6 +44,9 @@ final Map<String, WidgetBuilder> appRoutes = {
   '/explore': (context) => const EnhancedAuctionScreen(),
   '/create_auction': (context) => const CreateAuctionScreen(),
   '/auction_detail': (context) => const EnhancedAuctionScreen(),
+
+  //Payment Routes
+  '/checkout': (context) => const CheckoutScreen(),
   
   // New Routes
   '/search_explore': (context) => const SearchExploreScreen(),
