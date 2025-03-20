@@ -23,19 +23,14 @@ class _FilterDialogState extends State<FilterDialog> {
   late RangeValues _priceRange;
   late bool _activeOnly;
   late String _sortBy;
-  String? _categoryFilter;
-  
-  // Sample categories - in a real app these would come from the API
-  final List<String> _categories = [
-    'All',
+  late String? _categoryFilter;
+  final List<String> _availableCategories = [
+    'Flowers',
+    'Trees',
     'Succulents',
-    'Flowering Plants',
-    'Fruit Trees',
-    'Indoor Plants',
-    'Outdoor Plants',
-    'Rare Plants',
     'Herbs',
-    'Cacti',
+    'Indoor',
+    'Outdoor',
   ];
 
   @override
@@ -49,18 +44,57 @@ class _FilterDialogState extends State<FilterDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Filter Options'),
-      content: SingleChildScrollView(
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Price Range
+            // Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Filter Options',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+            const Divider(),
+            
+            // Active only filter
+            SwitchListTile(
+              title: const Text('Show active listings only'),
+              value: _activeOnly,
+              onChanged: (value) {
+                setState(() {
+                  _activeOnly = value;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Price range
             const Text(
               'Price Range',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
+            
             RangeSlider(
               values: _priceRange,
               min: 0,
@@ -68,107 +102,148 @@ class _FilterDialogState extends State<FilterDialog> {
               divisions: 20,
               labels: RangeLabels(
                 '\$${_priceRange.start.round()}',
-                '\$${_priceRange.end.round()}',
+                '\$${_priceRange.end.round()}'
               ),
-              onChanged: (values) {
-                setState(() => _priceRange = values);
+              onChanged: (RangeValues values) {
+                setState(() {
+                  _priceRange = values;
+                });
               },
             ),
-            Text(
-              'Price: \$${_priceRange.start.round()} - \$${_priceRange.end.round()}',
-              style: TextStyle(color: Colors.grey[600]),
+            
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('\$${_priceRange.start.round()}'),
+                Text('\$${_priceRange.end.round()}'),
+              ],
             ),
             
             const SizedBox(height: 16),
             
-            // Active Auctions Only
-            SwitchListTile(
-              title: const Text('Active Auctions Only'),
-              subtitle: const Text('Hide ended auctions'),
-              value: _activeOnly,
-              onChanged: (value) {
-                setState(() => _activeOnly = value);
-              },
-              contentPadding: EdgeInsets.zero,
-            ),
-            
-            const Divider(),
-            
-            // Sort Options
+            // Sort options
             const Text(
               'Sort By',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
-            _buildSortOption('newest', 'Newest'),
-            _buildSortOption('endingSoon', 'Ending Soon'),
-            _buildSortOption('priceAsc', 'Price: Low to High'),
-            _buildSortOption('priceDesc', 'Price: High to Low'),
             
-            const Divider(),
+            RadioListTile<String>(
+              title: const Text('Newest'),
+              value: 'newest',
+              groupValue: _sortBy,
+              onChanged: (value) {
+                setState(() {
+                  _sortBy = value!;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
             
-            // Categories
+            RadioListTile<String>(
+              title: const Text('Ending Soon'),
+              value: 'ending_soon',
+              groupValue: _sortBy,
+              onChanged: (value) {
+                setState(() {
+                  _sortBy = value!;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
+            
+            RadioListTile<String>(
+              title: const Text('Price: Low to High'),
+              value: 'price_low',
+              groupValue: _sortBy,
+              onChanged: (value) {
+                setState(() {
+                  _sortBy = value!;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
+            
+            RadioListTile<String>(
+              title: const Text('Price: High to Low'),
+              value: 'price_high',
+              groupValue: _sortBy,
+              onChanged: (value) {
+                setState(() {
+                  _sortBy = value!;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Category filter
             const Text(
-              'Categories',
+              'Category',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _categories.map((category) {
-                final isSelected = category == 'All' 
-                    ? _categoryFilter == null
-                    : _categoryFilter == category;
-                
-                return ChoiceChip(
-                  label: Text(category),
-                  selected: isSelected,
-                  onSelected: (selected) {
+            
+            Container(
+              height: 120,
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ListView(
+                padding: const EdgeInsets.all(8),
+                children: _availableCategories.map((category) {
+                  return CheckboxListTile(
+                    title: Text(category),
+                    value: _categoryFilter == category,
+                    onChanged: (value) {
+                      setState(() {
+                        _categoryFilter = value! ? category : null;
+                      });
+                    },
+                    dense: true,
+                  );
+                }).toList(),
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Action buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: () {
                     setState(() {
-                      _categoryFilter = selected 
-                          ? (category == 'All' ? null : category)
-                          : null;
+                      _priceRange = const RangeValues(0, 1000);
+                      _activeOnly = true;
+                      _sortBy = 'newest';
+                      _categoryFilter = null;
                     });
                   },
-                );
-              }).toList(),
+                  child: const Text('Reset All'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context, {
+                      'priceRange': _priceRange,
+                      'activeOnly': _activeOnly,
+                      'sortBy': _sortBy,
+                      'categoryFilter': _categoryFilter,
+                    });
+                  },
+                  child: const Text('Apply Filters'),
+                ),
+              ],
             ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            Navigator.pop(context, {
-              'priceRange': _priceRange,
-              'activeOnly': _activeOnly,
-              'sortBy': _sortBy,
-              'categoryFilter': _categoryFilter,
-            });
-          },
-          child: const Text('Apply'),
-        ),
-      ],
-    );
-  }
-  
-  Widget _buildSortOption(String value, String label) {
-    return RadioListTile<String>(
-      title: Text(label),
-      value: value,
-      groupValue: _sortBy,
-      onChanged: (value) {
-        if (value != null) {
-          setState(() => _sortBy = value);
-        }
-      },
-      contentPadding: EdgeInsets.zero,
-      dense: true,
     );
   }
 }

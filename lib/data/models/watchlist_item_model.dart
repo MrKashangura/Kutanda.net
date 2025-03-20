@@ -43,12 +43,12 @@ class WatchlistItem {
   /// Create from Supabase Map
   factory WatchlistItem.fromMap(Map<String, dynamic> map) {
     return WatchlistItem(
-      id: map['id'],
-      itemId: map['item_id'],
+      id: map['id'] ?? map['uid'],
+      itemId: map['item_id'] ?? map['item_uid'],
       itemType: map['item_type'] == 'auction' 
           ? WatchlistItemType.auction 
           : WatchlistItemType.fixedPrice,
-      userId: map['user_id'],
+      userId: map['user_id'] ?? map['user_uid'],
       createdAt: DateTime.parse(map['created_at']),
       maxAutoBidAmount: map['max_auto_bid_amount'] != null 
           ? (map['max_auto_bid_amount'] as num).toDouble() 
