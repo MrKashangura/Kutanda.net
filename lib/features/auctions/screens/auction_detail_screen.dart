@@ -1,3 +1,6 @@
+// lib/features/auctions/screens/auction_detail_screen.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -5,8 +8,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/utils/helpers.dart';
 import '../../../data/models/auction_model.dart';
 import '../../../shared/services/notification_service.dart';
+import '../../../shared/services/onesignal_service.dart';
 import '../../auth/widgets/countdown_timer.dart';
 import '../services/auction_service.dart';
+import '../services/auto_bid_service.dart';
+import '../services/recommendation_service.dart';
+import '../services/watchlist_service.dart';
+import '../widgets/auto_bid_widget.dart';
+import '../widgets/bid_history_widget.dart';
 
 class AuctionDetailScreen extends StatefulWidget {
   final String auctionId;
@@ -22,33 +31,55 @@ class AuctionDetailScreen extends StatefulWidget {
 
 class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
   final AuctionService _auctionService = AuctionService();
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final WatchlistService _watchlistService = WatchlistService();
+  final AutoBidService _autoBidService = AutoBidService();
+  final RecommendationService _recommendationService = RecommendationService();
   final NotificationService _notificationService = NotificationService();
+  final OneSignalService _oneSignalService = OneSignalService();
+  final SupabaseClient _supabase = Supabase.instance.client;
+  
+  late StreamSubscription<List<Map<String, dynamic>>> _bidsSubscription;
   
   bool _isLoading = true;
   Auction? _auction;
   List<Map<String, dynamic>> _bids = [];
+  List<Auction> _similarAuctions = [];
   bool _isWatchlisted = false;
   bool _showBidHistory = false;
+  bool _showAutoBid = false;
   bool _isBidding = false;
+  bool _isAutoBidActive = false;
+  Map<String, dynamic>? _sellerProfile;
   
   final TextEditingController _bidController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final PageController _imageController = PageController();
+  int _currentImageIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _initializeServices();
     _loadAuctionData();
-    _initNotifications();
   }
   
   @override
   void dispose() {
     _bidController.dispose();
+    _scrollController.dispose();
+    _imageController.dispose();
+    _bidsSubscription.cancel();
     super.dispose();
   }
   
-  Future<void> _initNotifications() async {
-    await _notificationService.initialize();
+  Future<void> _initializeServices() async {
+    try {
+      await _notificationService.initialize();
+      await _oneSignalService.initialize();
+    } catch (e) {
+      // Silently handle initialization failures
+      debugPrint('Warning: Could not initialize services: $e');
+    }
   }
 
   Future<void> _loadAuctionData() async {
@@ -64,34 +95,41 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
       
       final auction = Auction.fromMap(auctionData);
       
-      // Load bid history
-      final bidsData = await _supabase
-          .from('bids')
-          .select('*, bidder:profiles!bidder_id(display_name, email)')
-          .eq('auction_id', widget.auctionId)
-          .order('created_at', ascending: false);
+      // Subscribe to real-time bid updates
+      _bidsSubscription = _auctionService.listenToBids(widget.auctionId)
+          .listen(_onBidsUpdated);
+      
+      // Get seller profile
+      final sellerProfile = await _supabase
+          .from('profiles')
+          .select('display_name, email, avatar_url, rating')
+          .eq('id', auction.sellerId)
+          .maybeSingle();
       
       // Check if auction is in watchlist
       final user = _supabase.auth.currentUser;
       bool isWatchlisted = false;
+      bool isAutoBidActive = false;
       
       if (user != null) {
-        final watchlistData = await _supabase
-            .from('watchlist')
-            .select()
-            .eq('user_id', user.id)
-            .eq('item_id', widget.auctionId)
-            .eq('item_type', 'auction')
-            .maybeSingle();
+        final watchlistData = await _watchlistService.isInWatchlist(widget.auctionId);
+        isWatchlisted = watchlistData;
         
-        isWatchlisted = watchlistData != null;
+        // Check for auto-bid configuration
+        final autoBidData = await _autoBidService.getAutoBid(widget.auctionId);
+        isAutoBidActive = autoBidData != null && (autoBidData['is_active'] ?? false);
       }
+      
+      // Get similar auctions
+      final similarAuctions = await _recommendationService.getSimilarAuctions(widget.auctionId);
       
       if (mounted) {
         setState(() {
           _auction = auction;
-          _bids = List<Map<String, dynamic>>.from(bidsData);
+          _sellerProfile = sellerProfile;
           _isWatchlisted = isWatchlisted;
+          _isAutoBidActive = isAutoBidActive;
+          _similarAuctions = similarAuctions;
           _isLoading = false;
         });
       }
@@ -105,6 +143,24 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
     }
   }
   
+  void _onBidsUpdated(List<Map<String, dynamic>> bids) {
+    if (mounted) {
+      setState(() {
+        _bids = bids;
+        
+        // If the auction was updated, refresh auction data
+        if (bids.isNotEmpty && _auction != null) {
+          final latestBid = bids.first;
+          final bidAmount = (latestBid['amount'] as num?)?.toDouble() ?? 0.0;
+          
+          if (bidAmount > _auction!.highestBid) {
+            _loadAuctionData();
+          }
+        }
+      });
+    }
+  }
+  
   Future<void> _toggleWatchlist() async {
     final user = _supabase.auth.currentUser;
     if (user == null) {
@@ -115,13 +171,11 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
     }
     
     try {
+      setState(() => _isLoading = true);
+      
       if (_isWatchlisted) {
         // Remove from watchlist
-        await _supabase
-            .from('watchlist')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('item_id', widget.auctionId);
+        await _watchlistService.removeFromWatchlist(widget.auctionId);
         
         setState(() => _isWatchlisted = false);
         
@@ -132,12 +186,7 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
         }
       } else {
         // Add to watchlist
-        await _supabase.from('watchlist').insert({
-          'user_id': user.id,
-          'item_id': widget.auctionId,
-          'item_type': 'auction',
-          'created_at': DateTime.now().toIso8601String(),
-        });
+        await _watchlistService.addToWatchlist(widget.auctionId, WatchlistItemType.auction);
         
         setState(() => _isWatchlisted = true);
         
@@ -152,6 +201,10 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error updating watchlist: $e')),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -199,9 +252,6 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
       // Clear bid input
       _bidController.clear();
       
-      // Reload auction data
-      await _loadAuctionData();
-      
       if (mounted) {
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
@@ -210,6 +260,12 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
         
         // Notify about bid
         _notificationService.showBidPlacedNotification(_auction!.title, bidAmount);
+        
+        // Add to watchlist if not already
+        if (!_isWatchlisted) {
+          await _watchlistService.addToWatchlist(_auction!.id, WatchlistItemType.auction);
+          setState(() => _isWatchlisted = true);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -224,99 +280,16 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
     }
   }
   
-  void _showBidHistorySheet() {
-    setState(() => _showBidHistory = true);
-    
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.6,
-          minChildSize: 0.3,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (context, scrollController) {
-            return Container(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Bid History',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Bid list
-                  Expanded(
-                    child: _bids.isEmpty
-                        ? const Center(child: Text('No bids yet'))
-                        : ListView.builder(
-                            controller: scrollController,
-                            itemCount: _bids.length,
-                            itemBuilder: (context, index) {
-                              final bid = _bids[index];
-                              final bidder = bid['bidder'] as Map<String, dynamic>?;
-                              final bidAmount = (bid['amount'] as num).toDouble();
-                              final bidTime = DateTime.parse(bid['created_at']);
-                              final isAutoBid = bid['is_auto_bid'] ?? false;
-                              
-                              return ListTile(
-                                title: Text(
-                                  bidder?['display_name'] ?? bidder?['email'] ?? 'Anonymous',
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                subtitle: Text(formatRelativeTime(bidTime)),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      formatCurrency(bidAmount),
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    if (isAutoBid) ...[
-                                      const SizedBox(width: 4),
-                                      const Tooltip(
-                                        message: 'Auto Bid',
-                                        child: Icon(Icons.auto_awesome, size: 16),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    ).then((_) {
-      if (mounted) {
-        setState(() => _showBidHistory = false);
-      }
-    });
+  void _toggleBidHistory() {
+    setState(() => _showBidHistory = !_showBidHistory);
+  }
+  
+  void _toggleAutoBid() {
+    setState(() => _showAutoBid = !_showAutoBid);
+  }
+  
+  void _handleAutoBidUpdated(bool isActive) {
+    setState(() => _isAutoBidActive = isActive);
   }
 
   @override
@@ -372,228 +345,188 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
         children: [
           // Scrollable content
           Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Image carousel
-                  SizedBox(
-                    height: 250,
-                    child: PageView.builder(
-                      itemCount: auction.imageUrls.isEmpty ? 1 : auction.imageUrls.length,
-                      itemBuilder: (context, index) {
-                        if (auction.imageUrls.isEmpty) {
-                          return Container(
-                            color: Colors.grey[300],
-                            child: const Center(
-                              child: Icon(Icons.image, size: 100, color: Colors.grey),
+            child: ListView(
+              controller: _scrollController,
+              children: [
+                // Image gallery
+                Stack(
+                  children: [
+                    Container(
+                      height: 250,
+                      child: PageView.builder(
+                        controller: _imageController,
+                        onPageChanged: (index) {
+                          setState(() => _currentImageIndex = index);
+                        },
+                        itemCount: auction.imageUrls.isEmpty ? 1 : auction.imageUrls.length,
+                        itemBuilder: (context, index) {
+                          if (auction.imageUrls.isEmpty) {
+                            return Container(
+                              color: Colors.grey[300],
+                              child: const Center(
+                                child: Icon(Icons.image, size: 100, color: Colors.grey),
+                              ),
+                            );
+                          }
+                          
+                          return Image.network(
+                            auction.imageUrls[index],
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              color: Colors.grey[300],
+                              child: const Center(
+                                child: Icon(Icons.broken_image, size: 100, color: Colors.grey),
+                              ),
                             ),
                           );
-                        }
-                        
-                        return Image.network(
-                          auction.imageUrls[index],
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            color: Colors.grey[300],
-                            child: const Center(
-                              child: Icon(Icons.broken_image, size: 100, color: Colors.grey),
-                            ),
-                          ),
-                        );
-                      },
+                        },
+                      ),
                     ),
-                  ),
-                  
-                  // Main content
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Title and status
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                auction.title,
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: isEnded ? Colors.red : Colors.green,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                isEnded ? 'Ended' : 'Active',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
+                    
+                    // Status badge
+                    Positioned(
+                      top: 16,
+                      left: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isEnded ? Colors.red : Colors.green,
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        
-                        const SizedBox(height: 16),
-                        
-                        // Seller info (in a card)
-                        Card(
-                          margin: EdgeInsets.zero,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  backgroundColor: Colors.grey[300],
-                                  radius: 20,
-                                  child: const Icon(Icons.person),
-                                ),
-                                const SizedBox(width: 12),
-                                const Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Seller',
-                                        style: TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      Text(
-                                        'Plant Enthusiast',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green[100],
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.green),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.verified, size: 16, color: Colors.green[800]),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Verified',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.green[800],
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                        child: Text(
+                          isEnded ? 'Ended' : 'Active',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    
+                    // Image indicators
+                    if (auction.imageUrls.length > 1)
+                      Positioned(
+                        bottom: 16,
+                        left: 0,
+                        right: 0,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(
+                            auction.imageUrls.length,
+                            (index) => Container(
+                              width: 8,
+                              height: 8,
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _currentImageIndex == index
+                                    ? Theme.of(context).primaryColor
+                                    : Colors.white.withOpacity(0.5),
+                              ),
                             ),
                           ),
                         ),
-                        
-                        const SizedBox(height: 16),
-                        
-                        // Price and bid information
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Current Bid',
-                                    style: TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  Text(
-                                    currentBid,
-                                    style: TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                      color: Theme.of(context).primaryColor,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Starting: $startingPrice',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  const Text(
-                                    'Time Remaining',
-                                    style: TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  CountdownTimer(
-                                    endTime: auction.endTime,
-                                    textStyle: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: isEnded ? Colors.red : Colors.blue,
-                                    ),
-                                  ),
-                                  TextButton(
-                                    onPressed: _bids.isEmpty ? null : _showBidHistorySheet,
-                                    child: Text(
-                                      _bids.isEmpty
-                                          ? 'No bids yet'
-                                          : 'View ${_bids.length} bid${_bids.length == 1 ? '' : 's'}',
-                                      style: TextStyle(
-                                        color: _bids.isEmpty ? Colors.grey : Colors.blue,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                      ),
+                  ],
+                ),
+                
+                // Main content
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title
+                      Text(
+                        auction.title,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
                         ),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // Description section
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Seller info
+                      _buildSellerCard(),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Bid & timer section
+                      _buildBidSection(currentBid, startingPrice, isEnded),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Auto-bid toggle
+                      if (!isEnded) 
+                        OutlinedButton.icon(
+                          onPressed: _toggleAutoBid,
+                          icon: Icon(
+                            Icons.auto_awesome,
+                            color: _isAutoBidActive ? Colors.amber : Colors.grey,
+                          ),
+                          label: Text(_isAutoBidActive
+                              ? 'Auto-Bid Active - Manage'
+                              : 'Set Up Auto-Bid'),
+                        ),
+                      
+                      // Auto-bid widget
+                      if (_showAutoBid && !isEnded)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: AutoBidWidget(
+                            auctionId: auction.id,
+                            currentBid: auction.highestBid,
+                            bidIncrement: auction.bidIncrement,
+                            onAutoBidSet: _handleAutoBidUpdated,
+                          ),
+                        ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Bid history
+                      BidHistoryWidget(
+                        auctionId: auction.id,
+                        isExpanded: _showBidHistory,
+                        onToggleExpanded: _toggleBidHistory,
+                      ),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Description section
+                      const Text(
+                        'Description',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        auction.description,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      
+                      const SizedBox(height: 32),
+                      
+                      // Similar auctions
+                      if (_similarAuctions.isNotEmpty) ...[
                         const Text(
-                          'Description',
+                          'Similar Auctions',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          auction.description,
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        
-                        const SizedBox(height: 100), // Space for the bottom bid section
+                        const SizedBox(height: 16),
+                        _buildSimilarAuctions(),
                       ],
-                    ),
+                      
+                      const SizedBox(height: 100), // Space for bid input
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
           
@@ -710,5 +643,318 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
         ],
       ),
     );
+  }
+  
+  Widget _buildSellerCard() {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: Colors.grey[300],
+              radius: 24,
+              backgroundImage: _sellerProfile?['avatar_url'] != null 
+                  ? NetworkImage(_sellerProfile!['avatar_url']) 
+                  : null,
+              child: _sellerProfile?['avatar_url'] == null 
+                  ? const Icon(Icons.person) 
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Seller',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 12,
+                    ),
+                  ),
+                  Text(
+                    _sellerProfile?['display_name'] ?? 
+                    _sellerProfile?['email'] ?? 
+                    'Plant Enthusiast',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  if (_sellerProfile?['rating'] != null)
+                    Row(
+                      children: [
+                        ...List.generate(
+                          5, 
+                          (index) => Icon(
+                            index < (_sellerProfile!['rating'] as num).round()
+                                ? Icons.star
+                                : Icons.star_border,
+                            size: 14,
+                            color: Colors.amber,
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.green[100],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.verified, size: 16, color: Colors.green[800]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Verified',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.green[800],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildBidSection(String currentBid, String startingPrice, bool isEnded) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Bid info
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Current Bid',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                ),
+              ),
+              Text(
+                currentBid,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).primaryColor,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Starting: $startingPrice',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Highest bidder info
+              if (_auction!.highestBidderId != null && _bids.isNotEmpty) ...[
+                const Text(
+                  'Highest Bidder',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  _getBidderName(_bids.first),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        
+        // Time remaining
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Text(
+                'Time Remaining',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                ),
+              ),
+              CountdownTimer(
+                endTime: _auction!.endTime,
+                textStyle: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: isEnded ? Colors.red : Colors.blue,
+                ),
+                onTimerEnd: () {
+                  // Refresh when timer ends
+                  if (mounted) {
+                    _loadAuctionData();
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+              // Bid count
+              Text(
+                '${_bids.length} ${_bids.length == 1 ? 'bid' : 'bids'} so far',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+              ),
+              TextButton(
+                onPressed: _toggleBidHistory,
+                child: Text(_showBidHistory ? 'Hide Bid History' : 'Show Bid History'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildSimilarAuctions() {
+    return SizedBox(
+      height: 280,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: _similarAuctions.length,
+        itemBuilder: (context, index) {
+          final auction = _similarAuctions[index];
+          
+          return SizedBox(
+            width: 220,
+            child: Card(
+              clipBehavior: Clip.antiAlias,
+              margin: const EdgeInsets.only(right: 12),
+              child: InkWell(
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AuctionDetailScreen(auctionId: auction.id),
+                    ),
+                  );
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Image
+                    SizedBox(
+                      height: 120,
+                      width: double.infinity,
+                      child: auction.imageUrls.isNotEmpty
+                          ? Image.network(
+                              auction.imageUrls.first,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.image_not_supported, size: 40),
+                              ),
+                            )
+                          : Container(
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.image, size: 40),
+                            ),
+                    ),
+                    
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Title
+                          Text(
+                            auction.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 8),
+                          
+                          // Current bid
+                          Text(
+                            formatCurrency(auction.highestBid),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).primaryColor,
+                            ),
+                          ),
+                          
+                          // Time remaining
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Ends:',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: CountdownTimer(
+                                  endTime: auction.endTime,
+                                  textStyle: TextStyle(
+                                    fontSize: 12,
+                                    color: DateTime.now().isAfter(auction.endTime)
+                                        ? Colors.red
+                                        : Colors.blue,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+  
+  String _getBidderName(Map<String, dynamic> bid) {
+    final bidder = bid['bidder'] as Map<String, dynamic>?;
+    if (bidder == null) return 'Unknown';
+    
+    final displayName = bidder['display_name'];
+    if (displayName != null && displayName.isNotEmpty) {
+      return displayName;
+    }
+    
+    final email = bidder['email'];
+    if (email != null && email.isNotEmpty) {
+      return email.toString().split('@').first;
+    }
+    
+    return 'Unknown';
   }
 }

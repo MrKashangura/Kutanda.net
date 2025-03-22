@@ -25,6 +25,7 @@ class FixedPriceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasImages = listing.imageUrls.isNotEmpty;
     final isAvailable = listing.quantityAvailable > 0 && listing.isActive;
+    final isLowStock = isAvailable && listing.quantityAvailable < 5;
     
     // Format price
     final price = formatCurrency(listing.price);
@@ -102,16 +103,35 @@ class FixedPriceCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: isAvailable ? Colors.green : Colors.red,
+                      color: isAvailable 
+                          ? (isLowStock ? Colors.orange : Colors.green)
+                          : Colors.red,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Text(
-                      isAvailable ? 'Available' : 'Sold Out',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isAvailable
+                              ? (isLowStock ? Icons.inventory_2 : Icons.check_circle)
+                              : Icons.cancel,
+                          size: 12,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          isAvailable
+                              ? (isLowStock 
+                                  ? 'Low Stock (${listing.quantityAvailable})'
+                                  : 'In Stock (${listing.quantityAvailable})')
+                              : 'Out of Stock',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -181,12 +201,33 @@ class FixedPriceCard extends StatelessWidget {
                         ),
                       ),
                       
-                      // Quantity
-                      Text(
-                        '${listing.quantityAvailable} available',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
+                      // Availability indicator for narrow screens
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isAvailable 
+                              ? (isLowStock ? Colors.orange.withOpacity(0.1) : Colors.green.withOpacity(0.1))
+                              : Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: isAvailable 
+                                ? (isLowStock ? Colors.orange : Colors.green)
+                                : Colors.red,
+                          ),
+                        ),
+                        child: Text(
+                          isAvailable
+                              ? (isLowStock 
+                                  ? 'Only ${listing.quantityAvailable} left'
+                                  : '${listing.quantityAvailable} available')
+                              : 'Sold out',
+                          style: TextStyle(
+                            color: isAvailable 
+                                ? (isLowStock ? Colors.orange[800] : Colors.green[800])
+                                : Colors.red[800],
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],

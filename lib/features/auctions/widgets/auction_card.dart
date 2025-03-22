@@ -1,3 +1,4 @@
+// lib/features/auctions/widgets/auction_card.dart
 import 'package:flutter/material.dart';
 
 import '../../../core/utils/helpers.dart';
@@ -25,6 +26,7 @@ class AuctionCard extends StatelessWidget {
     // Check if auction is active and not ended
     final now = DateTime.now();
     final isEnded = now.isAfter(auction.endTime);
+    final isEndingSoon = !isEnded && auction.endTime.difference(now).inHours < 6;
     final hasImages = auction.imageUrls.isNotEmpty;
     
     // Format price details
@@ -82,11 +84,19 @@ class AuctionCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: isEnded ? Colors.red : Colors.green,
+                      color: isEnded 
+                          ? Colors.red 
+                          : isEndingSoon 
+                              ? Colors.orange 
+                              : Colors.green,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      isEnded ? 'Ended' : 'Active',
+                      isEnded 
+                          ? 'Ended' 
+                          : isEndingSoon 
+                              ? 'Ending Soon' 
+                              : 'Active',
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -173,21 +183,23 @@ class AuctionCard extends StatelessWidget {
                         ],
                       ),
                       
-                      // Time remaining
+                      // Time remaining with countdown timer
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           const Text(
                             'Time Remaining:',
-                            style: TextStyle(
-                              fontSize: 12,
-                            ),
+                            style: TextStyle(fontSize: 12),
                           ),
                           CountdownTimer(
                             endTime: auction.endTime,
                             textStyle: TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: isEnded ? Colors.red : Colors.blue,
+                              color: isEnded 
+                                  ? Colors.red 
+                                  : isEndingSoon 
+                                      ? Colors.orange 
+                                      : Colors.blue,
                             ),
                           ),
                         ],
