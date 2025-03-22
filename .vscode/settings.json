@@ -9,5 +9,8 @@
         "onesignal",
         "pinput",
         "supabase"
+    ],
+    "githubPullRequests.ignoredPullRequestBranches": [
+        "master"
     ]
 }

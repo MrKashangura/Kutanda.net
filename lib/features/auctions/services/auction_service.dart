@@ -225,7 +225,13 @@ Future<void> _handleOutbid(Map<String, dynamic> bid, String userId) async {
         
         // Send notification to all bidders
         for (final bidderId in bidders) {
-          await _notificationService.showAuctionEndingNotification(auction['title']);
+          await _oneSignalService.triggerNotification(
+            notificationType: 'auction_ending',
+            targetUserIds: [bidderId],
+            auctionId: auction['id'],
+            title: 'Auction Ending Soon!',
+            message: '${auction['title']} is ending in less than 5 minutes',
+          );
         }
         
         // Mark auction as notified

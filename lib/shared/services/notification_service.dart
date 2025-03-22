@@ -104,6 +104,30 @@ class NotificationService {
       notificationDetails,
     );
   }
+  
+  Future<void> showAutoBidNotification(String auctionTitle, double bidAmount) async {
+  if (!_isInitialized) await initialize();
+  
+  const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    'auto_bid_channel',
+    'Auto-Bid Notifications',
+    channelDescription: 'Notifications for automatic bids',
+    importance: Importance.high,
+    priority: Priority.high,
+  );
+  
+  const NotificationDetails notificationDetails = NotificationDetails(
+    android: androidDetails,
+    iOS: DarwinNotificationDetails(),
+  );
+  
+  await _notificationsPlugin.show(
+    4, // Use a unique ID different from other notification types
+    'Auto-Bid Placed',
+    'Your auto-bid system placed a bid of \$${bidAmount.toStringAsFixed(2)} on $auctionTitle',
+    notificationDetails,
+  );
+}
 
   Future<void> showAuctionWonNotification(String auctionTitle) async {
     if (!_isInitialized) await initialize();

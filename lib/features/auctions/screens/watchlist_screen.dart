@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../data/models/auction_model.dart';
+import '../../../data/models/fixed_price_listing_model.dart';
 import '../../../shared/widgets/bottom_navigation.dart';
 import '../services/auction_service.dart';
 import '../widgets/auction_card.dart';
