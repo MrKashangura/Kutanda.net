@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/utils/helpers.dart';
 import '../../../data/models/auction_model.dart';
+import '../../../data/models/watchlist_item_model.dart'; // Import added for WatchlistItemType
 import '../../../shared/services/notification_service.dart';
 import '../../../shared/services/onesignal_service.dart';
 import '../../auth/widgets/countdown_timer.dart';
@@ -292,6 +293,19 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
     setState(() => _isAutoBidActive = isActive);
   }
 
+  void _shareAuction() {
+    // Implement share functionality
+    if (_auction != null) {
+      final url = 'https://kutanda.net/auctions/${_auction!.id}';
+      final title = _auction!.title;
+      
+      // Show share dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sharing $title: $url')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -331,12 +345,7 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.share),
-            onPressed: () {
-              // Share auction functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Share functionality coming soon')),
-              );
-            },
+            onPressed: _shareAuction,
             tooltip: 'Share',
           ),
         ],
@@ -351,7 +360,7 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
                 // Image gallery
                 Stack(
                   children: [
-                    Container(
+                    SizedBox(
                       height: 250,
                       child: PageView.builder(
                         controller: _imageController,

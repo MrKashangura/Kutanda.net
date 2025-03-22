@@ -4,7 +4,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/utils/helpers.dart';
 import '../../../data/models/fixed_price_listing_model.dart';
+import '../../../data/models/watchlist_item_model.dart';
+import '../screens/checkout_screen.dart';
+import '../screens/shopping_cart_screen.dart';
 import '../services/cart_service.dart';
+import '../services/fixed_price_service.dart';
+import '../services/watchlist_service.dart';
 
 class FixedPriceDetailScreen extends StatefulWidget {
   final String listingId;
@@ -20,20 +25,33 @@ class FixedPriceDetailScreen extends StatefulWidget {
 
 class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
   final CartService _cartService = CartService();
+  final FixedPriceService _fixedPriceService = FixedPriceService();
+  final WatchlistService _watchlistService = WatchlistService();
   final SupabaseClient _supabase = Supabase.instance.client;
   
   bool _isLoading = true;
   FixedPriceListing? _listing;
   Map<String, dynamic>? _sellerProfile;
-  int _quantity = 1;
-  bool _isAddingToCart = false;
   bool _isSaved = false;
+  bool _isAddingToCart = false;
+  bool _isBuyingNow = false;
+  int _quantity = 1;
+  int _cartCount = 0;
+  
+  final PageController _imageController = PageController();
+  int _currentImageIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _loadListingData();
-    _checkIfSaved();
+    _loadCartCount();
+  }
+  
+  @override
+  void dispose() {
+    _imageController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadListingData() async {
@@ -41,13 +59,9 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
     
     try {
       // Get listing details
-      final response = await _supabase
-          .from('fixed_price_listings')
-          .select()
-          .eq('id', widget.listingId)
-          .maybeSingle();
+      final listing = await _fixedPriceService.getListingById(widget.listingId);
       
-      if (response == null) {
+      if (listing == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Listing not found')),
@@ -57,19 +71,27 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
         return;
       }
       
-      final listing = FixedPriceListing.fromMap(response);
-      
       // Get seller profile
       final sellerProfile = await _supabase
           .from('profiles')
-          .select('display_name, email, avatar_url')
+          .select('display_name, email, avatar_url, rating')
           .eq('id', listing.sellerId)
           .maybeSingle();
+      
+      // Check if listing is in watchlist
+      final user = _supabase.auth.currentUser;
+      bool isSaved = false;
+      
+      if (user != null) {
+        final watchlistData = await _watchlistService.isInWatchlist(widget.listingId);
+        isSaved = watchlistData;
+      }
       
       if (mounted) {
         setState(() {
           _listing = listing;
           _sellerProfile = sellerProfile;
+          _isSaved = isSaved;
           _isLoading = false;
         });
       }
@@ -82,66 +104,49 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
       }
     }
   }
-
-  Future<void> _checkIfSaved() async {
+  
+  Future<void> _loadCartCount() async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
-      
-      final savedItem = await _supabase
-          .from('watchlist')
-          .select()
-          .eq('user_id', user.id)
-          .eq('item_id', widget.listingId)
-          .eq('item_type', 'fixed_price')
-          .maybeSingle();
+      final cartCount = await _cartService.getCartCount();
       
       if (mounted) {
         setState(() {
-          _isSaved = savedItem != null;
+          _cartCount = cartCount;
         });
       }
     } catch (e) {
-      // Ignore errors checking saved status
+      // Silently handle cart count loading failures
     }
   }
-
+  
   Future<void> _toggleSaved() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be logged in to save items')),
+      );
+      return;
+    }
+    
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You must be logged in to save items')),
-        );
-        return;
-      }
-      
       if (_isSaved) {
-        // Remove from saved
-        await _supabase
-            .from('watchlist')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('item_id', widget.listingId)
-            .eq('item_type', 'fixed_price');
+        // Remove from watchlist
+        await _watchlistService.removeFromWatchlist(widget.listingId);
+        
+        setState(() => _isSaved = false);
         
         if (mounted) {
-          setState(() => _isSaved = false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Removed from saved items')),
           );
         }
       } else {
-        // Add to saved
-        await _supabase.from('watchlist').insert({
-          'user_id': user.id,
-          'item_id': widget.listingId,
-          'item_type': 'fixed_price',
-          'created_at': DateTime.now().toIso8601String(),
-        });
+        // Add to watchlist
+        await _watchlistService.addToWatchlist(widget.listingId, WatchlistItemType.fixedPrice);
+        
+        setState(() => _isSaved = true);
         
         if (mounted) {
-          setState(() => _isSaved = true);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Added to saved items')),
           );
@@ -155,12 +160,14 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
       }
     }
   }
-
+  
   void _updateQuantity(int delta) {
+    if (_listing == null) return;
+    
     final newQuantity = _quantity + delta;
     if (newQuantity < 1) return;
     
-    if (_listing != null && newQuantity > _listing!.quantityAvailable) {
+    if (newQuantity > _listing!.quantityAvailable) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Only ${_listing!.quantityAvailable} available')),
       );
@@ -169,14 +176,25 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
     
     setState(() => _quantity = newQuantity);
   }
-
+  
   Future<void> _addToCart() async {
     if (_listing == null) return;
+    
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be logged in to add items to cart')),
+      );
+      return;
+    }
     
     setState(() => _isAddingToCart = true);
     
     try {
       final success = await _cartService.addToCart(_listing!.id, _quantity);
+      
+      // Reload cart count
+      await _loadCartCount();
       
       if (mounted) {
         if (success) {
@@ -186,7 +204,10 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
               action: SnackBarAction(
                 label: 'View Cart',
                 onPressed: () {
-                  Navigator.pushNamed(context, '/cart');
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ShoppingCartScreen()),
+                  ).then((_) => _loadCartCount());
                 },
               ),
             ),
@@ -209,11 +230,19 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
       }
     }
   }
-
+  
   Future<void> _buyNow() async {
     if (_listing == null) return;
     
-    setState(() => _isAddingToCart = true);
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be logged in to purchase items')),
+      );
+      return;
+    }
+    
+    setState(() => _isBuyingNow = true);
     
     try {
       // Add to cart first
@@ -221,7 +250,10 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
       
       if (success && mounted) {
         // Navigate to checkout
-        Navigator.pushNamed(context, '/checkout');
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const CheckoutScreen()),
+        ).then((_) => _loadCartCount());
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to process purchase')),
@@ -235,8 +267,21 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() => _isAddingToCart = false);
+        setState(() => _isBuyingNow = false);
       }
+    }
+  }
+  
+  void _shareListing() {
+    // Implement share functionality
+    if (_listing != null) {
+      final url = 'https://kutanda.net/listings/${_listing!.id}';
+      final title = _listing!.title;
+      
+      // Show share dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sharing $title: $url')),
+      );
     }
   }
 
@@ -258,6 +303,8 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
     
     final listing = _listing!;
     final isAvailable = listing.quantityAvailable > 0 && listing.isActive;
+    final isLowStock = isAvailable && listing.quantityAvailable < 5;
+    final subtotal = listing.price * _quantity;
     
     return Scaffold(
       appBar: AppBar(
@@ -268,14 +315,49 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
             onPressed: _toggleSaved,
             tooltip: _isSaved ? 'Remove from saved' : 'Save for later',
           ),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.shopping_cart),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ShoppingCartScreen()),
+                  ).then((_) => _loadCartCount());
+                },
+                tooltip: 'Cart',
+              ),
+              if (_cartCount > 0)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      _cartCount.toString(),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.share),
-            onPressed: () {
-              // Share functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Share functionality coming soon')),
-              );
-            },
+            onPressed: _shareListing,
             tooltip: 'Share',
           ),
         ],
@@ -284,191 +366,232 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
         children: [
           // Scrollable content
           Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Image carousel
-                  SizedBox(
-                    height: 250,
-                    child: PageView.builder(
-                      itemCount: listing.imageUrls.isEmpty ? 1 : listing.imageUrls.length,
-                      itemBuilder: (context, index) {
-                        if (listing.imageUrls.isEmpty) {
-                          return Container(
-                            color: Colors.grey[300],
-                            child: const Center(
-                              child: Icon(Icons.image, size: 100, color: Colors.grey),
+            child: ListView(
+              children: [
+                // Image gallery
+                Stack(
+                  children: [
+                    SizedBox(
+                      height: 250,
+                      child: PageView.builder(
+                        controller: _imageController,
+                        onPageChanged: (index) {
+                          setState(() => _currentImageIndex = index);
+                        },
+                        itemCount: listing.imageUrls.isEmpty ? 1 : listing.imageUrls.length,
+                        itemBuilder: (context, index) {
+                          if (listing.imageUrls.isEmpty) {
+                            return Container(
+                              color: Colors.grey[300],
+                              child: const Center(
+                                child: Icon(Icons.image, size: 100, color: Colors.grey),
+                              ),
+                            );
+                          }
+                          
+                          return Image.network(
+                            listing.imageUrls[index],
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              color: Colors.grey[300],
+                              child: const Center(
+                                child: Icon(Icons.broken_image, size: 100, color: Colors.grey),
+                              ),
                             ),
                           );
-                        }
-                        
-                        return Image.network(
-                          listing.imageUrls[index],
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            color: Colors.grey[300],
-                            child: const Center(
-                              child: Icon(Icons.broken_image, size: 100, color: Colors.grey),
+                        },
+                      ),
+                    ),
+                    
+                    // Featured badge
+                    if (listing.isFeatured)
+                      Positioned(
+                        top: 16,
+                        left: 16,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.amber,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            'Featured',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        );
-                      },
+                        ),
+                      ),
+                    
+                    // Availability badge
+                    Positioned(
+                      top: listing.isFeatured ? 54 : 16,
+                      left: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isAvailable 
+                              ? (isLowStock ? Colors.orange : Colors.green)
+                              : Colors.red,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          isAvailable
+                              ? (isLowStock 
+                                  ? 'Low Stock (${listing.quantityAvailable})'
+                                  : 'In Stock')
+                              : 'Out of Stock',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  
-                  // Main content
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Title and availability
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                listing.title,
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                    
+                    // Image indicators
+                    if (listing.imageUrls.length > 1)
+                      Positioned(
+                        bottom: 16,
+                        left: 0,
+                        right: 0,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(
+                            listing.imageUrls.length,
+                            (index) => Container(
+                              width: 8,
+                              height: 8,
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _currentImageIndex == index
+                                    ? Theme.of(context).primaryColor
+                                    : Colors.white.withOpacity(0.5),
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: isAvailable ? Colors.green : Colors.red,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                isAvailable ? 'Available' : 'Sold Out',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                
+                // Main content
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title
+                      Text(
+                        listing.title,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 8),
+                      
+                      // Price
+                      Text(
+                        formatCurrency(listing.price),
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Seller info
+                      _buildSellerCard(),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Availability info
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isAvailable
+                              ? (isLowStock ? Colors.orange.withOpacity(0.1) : Colors.green.withOpacity(0.1))
+                              : Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isAvailable
+                                ? (isLowStock ? Colors.orange : Colors.green)
+                                : Colors.red,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isAvailable
+                                  ? (isLowStock ? Icons.warning_amber : Icons.check_circle)
+                                  : Icons.cancel,
+                              color: isAvailable
+                                  ? (isLowStock ? Colors.orange : Colors.green)
+                                  : Colors.red,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    isAvailable
+                                        ? (isLowStock
+                                            ? 'Low Stock'
+                                            : 'In Stock')
+                                        : 'Currently Unavailable',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: isAvailable
+                                          ? (isLowStock ? Colors.orange[800] : Colors.green[800])
+                                          : Colors.red[800],
+                                    ),
+                                  ),
+                                  Text(
+                                    isAvailable
+                                        ? '${listing.quantityAvailable} ${listing.quantityAvailable > 1 ? 'units' : 'unit'} available'
+                                        : 'This item is currently out of stock',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: isAvailable
+                                          ? (isLowStock ? Colors.orange[700] : Colors.green[700])
+                                          : Colors.red[700],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                        
-                        const SizedBox(height: 16),
-                        
-                        // Price
-                        Text(
-                          formatCurrency(listing.price),
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).primaryColor,
-                          ),
+                      ),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Description section
+                      const Text(
+                        'Description',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
-                        
-                        const SizedBox(height: 8),
-                        
-                        // Availability
-                        Text(
-                          '${listing.quantityAvailable} available',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 14,
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 16),
-                        
-                        // Seller info
-                        Card(
-                          margin: EdgeInsets.zero,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 20,
-                                  backgroundImage: _sellerProfile?['avatar_url'] != null
-                                      ? NetworkImage(_sellerProfile!['avatar_url'])
-                                      : null,
-                                  child: _sellerProfile?['avatar_url'] == null
-                                      ? const Icon(Icons.person)
-                                      : null,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Seller',
-                                        style: TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      Text(
-                                        _sellerProfile?['display_name'] ?? 
-                                        _sellerProfile?['email'] ?? 
-                                        'Plant Enthusiast',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green[100],
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.green),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.verified, size: 16, color: Colors.green[800]),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Verified',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.green[800],
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // Description Header
-                        const Text(
-                          'Description',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 8),
-                        
-                        // Description
-                        Text(
-                          listing.description,
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        
-                        const SizedBox(height: 100), // Space for bottom action bar
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        listing.description,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      
+                      const SizedBox(height: 100), // Space for action bar
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
           
@@ -514,7 +637,7 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
                       ),
                       const Spacer(),
                       Text(
-                        'Total: ${formatCurrency(listing.price * _quantity)}',
+                        'Total: ${formatCurrency(subtotal)}',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
@@ -553,8 +676,8 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
                       // Buy Now button
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: _isAddingToCart ? null : _buyNow,
-                          icon: _isAddingToCart
+                          onPressed: _isBuyingNow ? null : _buyNow,
+                          icon: _isBuyingNow
                               ? const SizedBox(
                                   width: 20,
                                   height: 20,
@@ -593,6 +716,7 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Out of stock message
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -606,7 +730,7 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'This item is currently sold out. Save it to your wishlist to be notified when it becomes available again.',
+                            'This item is currently sold out. Save it to be notified when it becomes available again.',
                             style: TextStyle(color: Colors.red[700]),
                           ),
                         ),
@@ -616,7 +740,7 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
                   
                   const SizedBox(height: 16),
                   
-                  // Wishlist button
+                  // Save button
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
@@ -624,13 +748,100 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
                       icon: Icon(
                         _isSaved ? Icons.bookmark : Icons.bookmark_border,
                       ),
-                      label: Text(_isSaved ? 'Saved to Wishlist' : 'Save to Wishlist'),
+                      label: Text(_isSaved ? 'Saved' : 'Save for Later'),
                     ),
                   ),
                 ],
               ),
             ),
         ],
+      ),
+    );
+  }
+  
+  Widget _buildSellerCard() {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: Colors.grey[300],
+              radius: 24,
+              backgroundImage: _sellerProfile?['avatar_url'] != null 
+                  ? NetworkImage(_sellerProfile!['avatar_url']) 
+                  : null,
+              child: _sellerProfile?['avatar_url'] == null 
+                  ? const Icon(Icons.person) 
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Seller',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 12,
+                    ),
+                  ),
+                  Text(
+                    _sellerProfile?['display_name'] ?? 
+                    _sellerProfile?['email'] ?? 
+                    'Plant Enthusiast',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  if (_sellerProfile?['rating'] != null)
+                    Row(
+                      children: [
+                        ...List.generate(
+                          5, 
+                          (index) => Icon(
+                            index < (_sellerProfile!['rating'] as num).round()
+                                ? Icons.star
+                                : Icons.star_border,
+                            size: 14,
+                            color: Colors.amber,
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.green[100],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.verified, size: 16, color: Colors.green[800]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Verified',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.green[800],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
