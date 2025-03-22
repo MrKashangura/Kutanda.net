@@ -12,13 +12,13 @@ class AuctionCard extends StatelessWidget {
   final VoidCallback onBid;
 
   const AuctionCard({
-    Key? key,
+    super.key,
     required this.auction,
     required this.isWatchlisted,
     required this.onWatchlistToggle,
     required this.onTap,
     required this.onBid,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

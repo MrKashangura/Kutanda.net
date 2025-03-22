@@ -9,7 +9,7 @@ import '../services/cart_service.dart';
 import '../widgets/cart_item_widget.dart';
 
 class ShoppingCartScreen extends StatefulWidget {
-  const ShoppingCartScreen({Key? key}) : super(key: key);
+  const ShoppingCartScreen({super.key});
 
   @override
   State<ShoppingCartScreen> createState() => _ShoppingCartScreenState();

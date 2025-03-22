@@ -58,7 +58,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           .eq('id', user.id)
           .single();
       
-      if (profile != null && profile['shipping_address'] != null) {
+      if (profile['shipping_address'] != null) {
         setState(() {
           _deliveryAddress = Map<String, dynamic>.from(profile['shipping_address']);
         });

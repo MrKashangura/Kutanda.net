@@ -2,15 +2,15 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/utils/constants.dart';
 import '../../../data/models/auction_model.dart';
 import '../../../data/models/fixed_price_listing_model.dart';
+import '../../../data/models/watchlist_item_model.dart'; // Added import for WatchlistItemType
 import '../../../shared/widgets/bottom_navigation.dart';
 import '../services/auction_service.dart';
 import '../services/fixed_price_service.dart';
 import '../services/watchlist_service.dart';
 import '../widgets/auction_card.dart';
-import '../widgets/fixed_price_card.dart';
+import '../widgets/fixed_price_card.dart' as widgets; // Use alias to resolve ambiguity
 import 'auction_detail_screen.dart';
 import 'fixed_price_detail_screen.dart';
 import 'search_explore_screen.dart';
@@ -101,26 +101,41 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
       
       if (isWatchlisted) {
         await _watchlistService.removeFromWatchlist(itemId);
-        setState(() {
-          _watchlistedItems.remove(itemId);
-        });
+        
+        if (mounted) {
+          setState(() {
+            _watchlistedItems.remove(itemId);
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Removed from watchlist'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
       } else {
         await _watchlistService.addToWatchlist(itemId, itemType);
-        setState(() {
-          _watchlistedItems.add(itemId);
-        });
+        
+        if (mounted) {
+          setState(() {
+            _watchlistedItems.add(itemId);
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Added to watchlist'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
       }
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isWatchlisted ? 'Removed from watchlist' : 'Added to watchlist'),
-          duration: const Duration(seconds: 1),
-        ),
-      );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating watchlist: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating watchlist: $e')),
+        );
+      }
     }
   }
 
@@ -274,7 +289,7 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
               ),
             ),
             const SizedBox(height: 8),
-            ...featuredFixedPrice.map((listing) => FixedPriceCard(
+            ...featuredFixedPrice.map((listing) => widgets.FixedPriceCard(
               listing: listing,
               isSaved: _watchlistedItems.contains(listing.id),
               onSavedToggle: () => _toggleWatchlist(
@@ -379,7 +394,7 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
         itemBuilder: (context, index) {
           final listing = _fixedPriceListings[index];
           
-          return FixedPriceCard(
+          return widgets.FixedPriceCard(
             listing: listing,
             isSaved: _watchlistedItems.contains(listing.id),
             onSavedToggle: () => _toggleWatchlist(

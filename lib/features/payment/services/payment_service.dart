@@ -152,10 +152,6 @@ class PaymentService {
           .eq('id', orderId)
           .single();
       
-      if (order == null) {
-        throw Exception('Order not found');
-      }
-      
       final status = order['status'] as String;
       if (status != 'pending' && status != 'paid') {
         throw Exception('Order cannot be cancelled in current state: $status');

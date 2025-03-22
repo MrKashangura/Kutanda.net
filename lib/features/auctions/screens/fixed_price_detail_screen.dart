@@ -10,9 +10,9 @@ class FixedPriceDetailScreen extends StatefulWidget {
   final String listingId;
   
   const FixedPriceDetailScreen({
-    Key? key,
+    super.key,
     required this.listingId,
-  }) : super(key: key);
+  });
 
   @override
   State<FixedPriceDetailScreen> createState() => _FixedPriceDetailScreenState();
@@ -182,7 +182,7 @@ class _FixedPriceDetailScreenState extends State<FixedPriceDetailScreen> {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${_quantity} ${_quantity > 1 ? 'items' : 'item'} added to cart'),
+              content: Text('$_quantity ${_quantity > 1 ? 'items' : 'item'} added to cart'),
               action: SnackBarAction(
                 label: 'View Cart',
                 onPressed: () {

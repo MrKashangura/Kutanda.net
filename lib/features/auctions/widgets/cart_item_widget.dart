@@ -11,12 +11,12 @@ class CartItemWidget extends StatefulWidget {
   final Function(FixedPriceListing) onRemove;
 
   const CartItemWidget({
-    Key? key,
+    super.key,
     required this.listing,
     required this.quantity,
     required this.onQuantityChanged,
     required this.onRemove,
-  }) : super(key: key);
+  });
 
   @override
   State<CartItemWidget> createState() => _CartItemWidgetState();

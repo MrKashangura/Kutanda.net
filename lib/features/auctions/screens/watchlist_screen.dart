@@ -9,7 +9,7 @@ import '../widgets/fixed_price_card.dart';
 import 'auction_detail_screen.dart';
 
 class WatchlistScreen extends StatefulWidget {
-  const WatchlistScreen({Key? key}) : super(key: key);
+  const WatchlistScreen({super.key});
 
   @override
   State<WatchlistScreen> createState() => _WatchlistScreenState();

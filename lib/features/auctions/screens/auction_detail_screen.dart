@@ -12,9 +12,9 @@ class AuctionDetailScreen extends StatefulWidget {
   final String auctionId;
   
   const AuctionDetailScreen({
-    Key? key,
+    super.key,
     required this.auctionId,
-  }) : super(key: key);
+  });
 
   @override
   State<AuctionDetailScreen> createState() => _AuctionDetailScreenState();

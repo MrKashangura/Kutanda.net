@@ -75,14 +75,14 @@ class FixedPriceCard extends StatelessWidget {
   final VoidCallback onBuyNow;
 
   const FixedPriceCard({
-    Key? key,
+    super.key,
     required this.listing,
     required this.isSaved,
     required this.onSavedToggle,
     required this.onTap,
     required this.onAddToCart,
     required this.onBuyNow,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -1,7 +1,6 @@
 // lib/features/auctions/widgets/bid_history_widget.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/utils/helpers.dart';
 
@@ -11,11 +10,11 @@ class BidHistoryWidget extends StatefulWidget {
   final VoidCallback? onToggleExpanded;
 
   const BidHistoryWidget({
-    Key? key,
+    super.key,
     required this.auctionId,
     this.isExpanded = false,
     this.onToggleExpanded,
-  }) : super(key: key);
+  });
 
   @override
   State<BidHistoryWidget> createState() => _BidHistoryWidgetState();

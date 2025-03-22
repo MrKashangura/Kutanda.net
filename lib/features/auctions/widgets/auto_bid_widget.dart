@@ -13,12 +13,12 @@ class AutoBidWidget extends StatefulWidget {
   final Function(bool success) onAutoBidSet;
 
   const AutoBidWidget({
-    Key? key,
+    super.key,
     required this.auctionId,
     required this.currentBid,
     required this.bidIncrement,
     required this.onAutoBidSet,
-  }) : super(key: key);
+  });
 
   @override
   State<AutoBidWidget> createState() => _AutoBidWidgetState();
