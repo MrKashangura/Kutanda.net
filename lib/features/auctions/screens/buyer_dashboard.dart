@@ -4,20 +4,17 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../data/models/auction_model.dart';
 import '../../../data/models/fixed_price_listing_model.dart';
-import '../../../data/models/watchlist_item_model.dart';
-import '../../../shared/services/notification_service.dart';
+import '../../../data/models/watchlist_item_model.dart'; // Added import for WatchlistItemType
 import '../../../shared/widgets/bottom_navigation.dart';
 import '../services/auction_service.dart';
-import '../services/cart_service.dart';
 import '../services/fixed_price_service.dart';
-import '../services/recommendation_service.dart';
 import '../services/watchlist_service.dart';
 import '../widgets/auction_card.dart';
-import '../widgets/fixed_price_card.dart';
+import '../widgets/fixed_price_card.dart' as widgets; // Use alias to resolve ambiguity
 import 'auction_detail_screen.dart';
+import 'bid_history_screen.dart'; // Import BidHistoryScreen
 import 'fixed_price_detail_screen.dart';
 import 'search_explore_screen.dart';
-import 'shopping_cart_screen.dart';
 import 'watchlist_screen.dart';
 
 class BuyerDashboard extends StatefulWidget {
@@ -29,31 +26,23 @@ class BuyerDashboard extends StatefulWidget {
 
 class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProviderStateMixin {
   final AuctionService _auctionService = AuctionService();
-  final CartService _cartService = CartService();
   final FixedPriceService _fixedPriceService = FixedPriceService();
-  final RecommendationService _recommendationService = RecommendationService();
   final WatchlistService _watchlistService = WatchlistService();
-  final NotificationService _notificationService = NotificationService();
   final SupabaseClient _supabase = Supabase.instance.client;
   
   late TabController _tabController;
   bool _isLoading = true;
   List<Auction> _auctions = [];
-  List<Auction> _recommendedAuctions = [];
-  List<Auction> _endingSoonAuctions = [];
   List<FixedPriceListing> _fixedPriceListings = [];
-  List<FixedPriceListing> _featuredListings = [];
-  List<String> _watchlistedItemIds = [];
-  int _cartCount = 0;
+  List<String> _watchlistedItems = [];
   
   NavDestination _currentDestination = NavDestination.dashboard;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _initializeServices();
-    _loadDashboardData();
+    _tabController = TabController(length: 4, vsync: this);
+    _loadData();
   }
   
   @override
@@ -62,29 +51,23 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
     super.dispose();
   }
 
-  Future<void> _initializeServices() async {
-    try {
-      await _notificationService.initialize();
-    } catch (e) {
-      // Silently handle notification initialization failures
-      debugPrint('Warning: Could not initialize notifications: $e');
-    }
-  }
-
-  Future<void> _loadDashboardData() async {
+  Future<void> _loadData() async {
     setState(() => _isLoading = true);
     
     try {
-      // Load data in parallel for better performance
-      await Future.wait([
-        _loadAuctions(),
-        _loadFixedPriceListings(),
-        _loadWatchlist(),
-        _loadCartCount(),
+      // Load auctions, fixed price listings, and watchlist in parallel
+      final futures = await Future.wait([
+        _auctionService.getActiveAuctions().first,
+        _fixedPriceService.getActiveListings(),
+        _loadWatchlistItems(),
       ]);
       
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _auctions = futures[0] as List<Auction>;
+          _fixedPriceListings = futures[1] as List<FixedPriceListing>;
+          _isLoading = false;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -96,152 +79,72 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
     }
   }
 
-  Future<void> _loadAuctions() async {
-    try {
-      // Get active auctions
-      final auctionsStream = _auctionService.getActiveAuctions();
-      _auctions = await auctionsStream.first;
-      
-      // Get personalized recommendations
-      _recommendedAuctions = await _recommendationService.getRecommendedAuctions();
-      
-      // Get ending soon auctions
-      _endingSoonAuctions = _auctions
-          .where((auction) {
-            final now = DateTime.now();
-            final difference = auction.endTime.difference(now);
-            // Less than 12 hours remaining
-            return difference.inHours < 12 && difference.isNegative == false;
-          })
-          .toList();
-      
-      // Sort ending soon auctions by end time
-      _endingSoonAuctions.sort((a, b) => a.endTime.compareTo(b.endTime));
-      
-      if (mounted) {
-        setState(() {});
-      }
-    } catch (e) {
-      debugPrint('Error loading auctions: $e');
-    }
-  }
-
-  Future<void> _loadFixedPriceListings() async {
-    try {
-      // Get active fixed price listings
-      _fixedPriceListings = await _fixedPriceService.getActiveListings();
-      
-      // Get featured listings
-      _featuredListings = await _fixedPriceService.getFeaturedListings();
-      
-      if (mounted) {
-        setState(() {});
-      }
-    } catch (e) {
-      debugPrint('Error loading fixed price listings: $e');
-    }
-  }
-
-  Future<void> _loadWatchlist() async {
+  Future<void> _loadWatchlistItems() async {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
       
-      // Get all watchlisted item IDs
-      final watchlistIds = await _watchlistService.getWatchlistItemIds();
+      final items = await _watchlistService.getWatchlistItemIds();
       
       if (mounted) {
         setState(() {
-          _watchlistedItemIds = watchlistIds;
+          _watchlistedItems = items;
         });
       }
     } catch (e) {
-      debugPrint('Error loading watchlist: $e');
-    }
-  }
-
-  Future<void> _loadCartCount() async {
-    try {
-      final cartCount = await _cartService.getCartCount();
-      
-      if (mounted) {
-        setState(() {
-          _cartCount = cartCount;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading cart count: $e');
+      // Handle silently
     }
   }
 
   Future<void> _toggleWatchlist(String itemId, WatchlistItemType itemType) async {
     try {
-      final isWatchlisted = _watchlistedItemIds.contains(itemId);
+      final isWatchlisted = _watchlistedItems.contains(itemId);
       
       if (isWatchlisted) {
         await _watchlistService.removeFromWatchlist(itemId);
-        setState(() {
-          _watchlistedItemIds.remove(itemId);
-        });
+        
+        if (mounted) {
+          setState(() {
+            _watchlistedItems.remove(itemId);
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Removed from watchlist'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
       } else {
         await _watchlistService.addToWatchlist(itemId, itemType);
-        setState(() {
-          _watchlistedItemIds.add(itemId);
-        });
+        
+        if (mounted) {
+          setState(() {
+            _watchlistedItems.add(itemId);
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Added to watchlist'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
       }
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isWatchlisted 
-              ? 'Removed from watchlist' 
-              : 'Added to watchlist'),
-          duration: const Duration(seconds: 1),
-        ),
-      );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating watchlist: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating watchlist: $e')),
+        );
+      }
     }
-  }
-
-  void _navigateToAuctionDetails(String auctionId) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AuctionDetailScreen(auctionId: auctionId),
-      ),
-    ).then((_) => _loadDashboardData());
-  }
-
-  void _navigateToFixedPriceDetails(String listingId) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => FixedPriceDetailScreen(listingId: listingId),
-      ),
-    ).then((_) => _loadDashboardData());
   }
 
   void _navigateToSearch() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const SearchExploreScreen()),
-    ).then((_) => _loadDashboardData());
-  }
-
-  void _navigateToWatchlist() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const WatchlistScreen()),
-    ).then((_) => _loadDashboardData());
-  }
-
-  void _navigateToCart() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ShoppingCartScreen()),
-    ).then((_) => _loadDashboardData());
+    ).then((_) => _loadData());
   }
 
   @override
@@ -250,61 +153,29 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
       appBar: AppBar(
         title: const Text('Kutanda Plant Auction'),
         actions: [
-          // Search button
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: _navigateToSearch,
             tooltip: 'Search',
           ),
-          // Watchlist button
           IconButton(
-            icon: const Icon(Icons.favorite_border),
-            onPressed: _navigateToWatchlist,
+            icon: const Icon(Icons.bookmarks),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const WatchlistScreen()),
+              ).then((_) => _loadData());
+            },
             tooltip: 'Watchlist',
-          ),
-          // Cart button with count indicator
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.shopping_cart),
-                onPressed: _navigateToCart,
-                tooltip: 'Cart',
-              ),
-              if (_cartCount > 0)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    child: Text(
-                      _cartCount.toString(),
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
           ),
         ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(text: 'Home'),
+            Tab(text: 'Featured'),
             Tab(text: 'Auctions'),
-            Tab(text: 'Buy Now'),
+            Tab(text: 'Fixed Price'),
+            Tab(text: 'Bid History'),
           ],
         ),
       ),
@@ -313,16 +184,24 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
           : TabBarView(
               controller: _tabController,
               children: [
-                // Home tab
-                _buildHomeTab(),
+                // Featured Tab - Mix of auctions and fixed price
+                _buildFeaturedTab(),
                 
-                // Auctions tab
+                // Auctions Tab
                 _buildAuctionsTab(),
                 
-                // Fixed Price tab
+                // Fixed Price Tab
                 _buildFixedPriceTab(),
+                
+                // Bid History Tab
+                const BidHistoryScreen(),
               ],
             ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _loadData,
+        tooltip: 'Refresh',
+        child: const Icon(Icons.refresh),
+      ),
       bottomNavigationBar: BottomNavigation(
         currentDestination: _currentDestination,
         onDestinationSelected: (destination) {
@@ -336,95 +215,130 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
     );
   }
 
-  Widget _buildHomeTab() {
+  Widget _buildFeaturedTab() {
+    // Combine featured auctions and fixed price listings
+    final featuredAuctions = _auctions
+        .where((auction) => auction.isActive)
+        .take(3)
+        .toList();
+    
+    final featuredFixedPrice = _fixedPriceListings
+        .where((listing) => listing.isFeatured && listing.isActive)
+        .take(3)
+        .toList();
+    
+    if (featuredAuctions.isEmpty && featuredFixedPrice.isEmpty) {
+      return _buildEmptyState('No featured items available');
+    }
+    
     return RefreshIndicator(
-      onRefresh: _loadDashboardData,
+      onRefresh: _loadData,
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Welcome section
-          _buildWelcomeSection(),
+          // Featured sections header
+          const Text(
+            'Featured Items',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           
           const SizedBox(height: 16),
           
-          // Ending soon auctions
-          if (_endingSoonAuctions.isNotEmpty) ...[
-            _buildSectionHeader('Ending Soon', Icons.timelapse),
-            SizedBox(
-              height: 340,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _endingSoonAuctions.length,
-                itemBuilder: (context, index) {
-                  final auction = _endingSoonAuctions[index];
-                  return SizedBox(
-                    width: 280,
-                    child: AuctionCard(
-                      auction: auction,
-                      isWatchlisted: _watchlistedItemIds.contains(auction.id),
-                      onWatchlistToggle: () => _toggleWatchlist(
-                        auction.id, 
-                        WatchlistItemType.auction
-                      ),
-                      onTap: () => _navigateToAuctionDetails(auction.id),
-                      onBid: () => _navigateToAuctionDetails(auction.id),
-                    ),
-                  );
-                },
+          // Featured auctions
+          if (featuredAuctions.isNotEmpty) ...[
+            const Text(
+              'Ending Soon Auctions',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
             ),
+            const SizedBox(height: 8),
+            ...featuredAuctions.map((auction) => AuctionCard(
+              auction: auction,
+              isWatchlisted: _watchlistedItems.contains(auction.id),
+              onWatchlistToggle: () => _toggleWatchlist(
+                auction.id, 
+                WatchlistItemType.auction
+              ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AuctionDetailScreen(auctionId: auction.id),
+                  ),
+                ).then((_) => _loadData());
+              },
+              onBid: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AuctionDetailScreen(auctionId: auction.id),
+                  ),
+                ).then((_) => _loadData());
+              },
+            )),
+            const SizedBox(height: 24),
           ],
           
-          const SizedBox(height: 16),
-          
-          // Recommended auctions
-          if (_recommendedAuctions.isNotEmpty) ...[
-            _buildSectionHeader('Recommended For You', Icons.recommend),
-            ..._recommendedAuctions.take(3).map((auction) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: AuctionCard(
-                auction: auction,
-                isWatchlisted: _watchlistedItemIds.contains(auction.id),
-                onWatchlistToggle: () => _toggleWatchlist(
-                  auction.id, 
-                  WatchlistItemType.auction
-                ),
-                onTap: () => _navigateToAuctionDetails(auction.id),
-                onBid: () => _navigateToAuctionDetails(auction.id),
+          // Featured fixed price listings
+          if (featuredFixedPrice.isNotEmpty) ...[
+            const Text(
+              'Featured Plants',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
+            ),
+            const SizedBox(height: 8),
+            ...featuredFixedPrice.map((listing) => widgets.FixedPriceCard(
+              listing: listing,
+              isSaved: _watchlistedItems.contains(listing.id),
+              onSavedToggle: () => _toggleWatchlist(
+                listing.id, 
+                WatchlistItemType.fixedPrice
+              ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FixedPriceDetailScreen(listingId: listing.id),
+                  ),
+                ).then((_) => _loadData());
+              },
+              onAddToCart: () {
+                // Navigate to fixed price detail for add to cart
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FixedPriceDetailScreen(listingId: listing.id),
+                  ),
+                ).then((_) => _loadData());
+              },
+              onBuyNow: () {
+                // Navigate to fixed price detail for direct purchase
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FixedPriceDetailScreen(listingId: listing.id),
+                  ),
+                ).then((_) => _loadData());
+              },
             )),
           ],
           
           const SizedBox(height: 16),
           
-          // Featured fixed price listings
-          if (_featuredListings.isNotEmpty) ...[
-            _buildSectionHeader('Featured Plants', Icons.star),
-            SizedBox(
-              height: 340,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _featuredListings.length,
-                itemBuilder: (context, index) {
-                  final listing = _featuredListings[index];
-                  return SizedBox(
-                    width: 280,
-                    child: FixedPriceCard(
-                      listing: listing,
-                      isSaved: _watchlistedItemIds.contains(listing.id),
-                      onSavedToggle: () => _toggleWatchlist(
-                        listing.id, 
-                        WatchlistItemType.fixedPrice
-                      ),
-                      onTap: () => _navigateToFixedPriceDetails(listing.id),
-                      onAddToCart: () => _navigateToFixedPriceDetails(listing.id),
-                      onBuyNow: () => _navigateToFixedPriceDetails(listing.id),
-                    ),
-                  );
-                },
-              ),
+          // Browse more button
+          Center(
+            child: OutlinedButton(
+              onPressed: _navigateToSearch,
+              child: const Text('Browse All Items'),
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -432,32 +346,40 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
 
   Widget _buildAuctionsTab() {
     if (_auctions.isEmpty) {
-      return _buildEmptyState(
-        'No active auctions available',
-        'Check back soon for new auctions',
-      );
+      return _buildEmptyState('No active auctions available');
     }
     
     return RefreshIndicator(
-      onRefresh: _loadDashboardData,
+      onRefresh: _loadData,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: _auctions.length,
         itemBuilder: (context, index) {
           final auction = _auctions[index];
           
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: AuctionCard(
-              auction: auction,
-              isWatchlisted: _watchlistedItemIds.contains(auction.id),
-              onWatchlistToggle: () => _toggleWatchlist(
-                auction.id, 
-                WatchlistItemType.auction
-              ),
-              onTap: () => _navigateToAuctionDetails(auction.id),
-              onBid: () => _navigateToAuctionDetails(auction.id),
+          return AuctionCard(
+            auction: auction,
+            isWatchlisted: _watchlistedItems.contains(auction.id),
+            onWatchlistToggle: () => _toggleWatchlist(
+              auction.id, 
+              WatchlistItemType.auction
             ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AuctionDetailScreen(auctionId: auction.id),
+                ),
+              ).then((_) => _loadData());
+            },
+            onBid: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AuctionDetailScreen(auctionId: auction.id),
+                ),
+              ).then((_) => _loadData());
+            },
           );
         },
       ),
@@ -466,238 +388,75 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
 
   Widget _buildFixedPriceTab() {
     if (_fixedPriceListings.isEmpty) {
-      return _buildEmptyState(
-        'No fixed price listings available',
-        'Check back soon for new plants',
-      );
+      return _buildEmptyState('No fixed price listings available');
     }
     
     return RefreshIndicator(
-      onRefresh: _loadDashboardData,
+      onRefresh: _loadData,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: _fixedPriceListings.length,
         itemBuilder: (context, index) {
           final listing = _fixedPriceListings[index];
           
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: FixedPriceCard(
-              listing: listing,
-              isSaved: _watchlistedItemIds.contains(listing.id),
-              onSavedToggle: () => _toggleWatchlist(
-                listing.id, 
-                WatchlistItemType.fixedPrice
-              ),
-              onTap: () => _navigateToFixedPriceDetails(listing.id),
-              onAddToCart: () => _navigateToFixedPriceDetails(listing.id),
-              onBuyNow: () => _navigateToFixedPriceDetails(listing.id),
+          return widgets.FixedPriceCard(
+            listing: listing,
+            isSaved: _watchlistedItems.contains(listing.id),
+            onSavedToggle: () => _toggleWatchlist(
+              listing.id, 
+              WatchlistItemType.fixedPrice
             ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => FixedPriceDetailScreen(listingId: listing.id),
+                ),
+              ).then((_) => _loadData());
+            },
+            onAddToCart: () {
+              // Navigate to fixed price detail for add to cart
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => FixedPriceDetailScreen(listingId: listing.id),
+                ),
+              ).then((_) => _loadData());
+            },
+            onBuyNow: () {
+              // Navigate to fixed price detail for direct purchase
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => FixedPriceDetailScreen(listingId: listing.id),
+                ),
+              ).then((_) => _loadData());
+            },
           );
         },
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: Theme.of(context).primaryColor),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          TextButton(
-            onPressed: () {
-              // Navigate to section view
-              _navigateToSearch();
-            },
-            child: const Text('View All'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWelcomeSection() {
-    final String greeting = _getGreeting();
-    final String userName = _getUserName();
-    
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '$greeting, $userName',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Welcome to Kutanda. Explore rare and beautiful plants from sellers around the world.',
-              style: TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildQuickActionButton(
-                  label: 'Search',
-                  icon: Icons.search,
-                  onTap: _navigateToSearch,
-                ),
-                _buildQuickActionButton(
-                  label: 'Watchlist',
-                  icon: Icons.favorite,
-                  onTap: _navigateToWatchlist,
-                ),
-                _buildQuickActionButton(
-                  label: 'Cart',
-                  icon: Icons.shopping_cart,
-                  onTap: _navigateToCart,
-                  badge: _cartCount > 0 ? _cartCount.toString() : null,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickActionButton({
-    required String label,
-    required IconData icon,
-    required VoidCallback onTap,
-    String? badge,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-          children: [
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-                  child: Icon(
-                    icon,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                ),
-                if (badge != null)
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
-                      ),
-                      child: Text(
-                        badge,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(String title, String message) {
+  Widget _buildEmptyState(String message) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.category_outlined,
-            size: 64,
-            color: Colors.grey[400],
-          ),
+          const Icon(Icons.category, size: 64, color: Colors.grey),
           const SizedBox(height: 16),
           Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
             message,
-            style: TextStyle(color: Colors.grey[600]),
+            style: const TextStyle(fontSize: 18),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           ElevatedButton(
-            onPressed: _loadDashboardData,
+            onPressed: _loadData,
             child: const Text('Refresh'),
           ),
         ],
       ),
     );
-  }
-
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) {
-      return 'Good Morning';
-    } else if (hour < 17) {
-      return 'Good Afternoon';
-    } else {
-      return 'Good Evening';
-    }
-  }
-
-  String _getUserName() {
-    final user = _supabase.auth.currentUser;
-    if (user?.userMetadata?['full_name'] != null) {
-      return user!.userMetadata!['full_name'];
-    } else if (user?.email != null) {
-      return user!.email!.split('@')[0];
-    } else {
-      return 'Plant Enthusiast';
-    }
   }
 }

@@ -1,32 +1,35 @@
-// lib/features/auctions/screens/checkout_screen.dart
+// lib/features/auctions/screens/won_auction_checkout_screen.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/helpers.dart';
-import '../../../data/models/fixed_price_listing_model.dart';
+import '../../../data/models/auction_model.dart';
 import '../../../features/payment/screens/order_confirmation_screen.dart';
 import '../../../features/payment/services/payment_service.dart';
 import '../../../features/payment/widgets/delivery_address_form.dart';
 import '../../../features/payment/widgets/payment_method_selector.dart';
 import '../../../shared/widgets/bottom_navigation.dart';
-import '../services/cart_service.dart';
 
-class CheckoutScreen extends StatefulWidget {
-  const CheckoutScreen({super.key});
+class WonAuctionCheckoutScreen extends StatefulWidget {
+  final String auctionId;
+  
+  const WonAuctionCheckoutScreen({
+    super.key,
+    required this.auctionId,
+  });
 
   @override
-  State<CheckoutScreen> createState() => _CheckoutScreenState();
+  State<WonAuctionCheckoutScreen> createState() => _WonAuctionCheckoutScreenState();
 }
 
-class _CheckoutScreenState extends State<CheckoutScreen> {
-  final CartService _cartService = CartService();
+class _WonAuctionCheckoutScreenState extends State<WonAuctionCheckoutScreen> {
+  final _addressFormKey = GlobalKey<FormState>();
   final PaymentService _paymentService = PaymentService();
   final SupabaseClient _supabase = Supabase.instance.client;
   
   bool _isLoading = true;
-  List<Map<String, dynamic>> _cartItems = [];
-  List<FixedPriceListing> _listings = [];
+  Auction? _auction;
   double _subtotal = 0.0;
   double _shippingFee = 10.0; // Default shipping fee
   double _tax = 0.0;
@@ -36,14 +39,59 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Map<String, dynamic> _deliveryAddress = {};
   bool _saveAddress = true;
   bool _isProcessingPayment = false;
-  
-  final _addressFormKey = GlobalKey<FormState>();
+  Map<String, dynamic>? _sellerProfile;
 
   @override
   void initState() {
     super.initState();
-    _loadCartItems();
+    _loadAuctionData();
     _loadUserAddress();
+  }
+
+  Future<void> _loadAuctionData() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      // Get auction details
+      final auctionData = await _supabase
+          .from('auctions')
+          .select()
+          .eq('id', widget.auctionId)
+          .single();
+      
+      final auction = Auction.fromMap(auctionData);
+      
+      // Get seller information
+      final sellerProfile = await _supabase
+          .from('profiles')
+          .select('display_name, email, avatar_url')
+          .eq('id', auction.sellerId)
+          .maybeSingle();
+      
+      // Calculate costs
+      final subtotal = auction.highestBid;
+      final tax = subtotal * 0.05;
+      final total = subtotal + _shippingFee + tax;
+      
+      if (mounted) {
+        setState(() {
+          _auction = auction;
+          _sellerProfile = sellerProfile;
+          _subtotal = subtotal;
+          _tax = tax;
+          _total = total;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading auction: $e')),
+        );
+        Navigator.pop(context);
+      }
+    }
   }
 
   Future<void> _loadUserAddress() async {
@@ -68,87 +116,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  Future<void> _loadCartItems() async {
-    setState(() => _isLoading = true);
-    
-    try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('You must be logged in to checkout')),
-          );
-          Navigator.pop(context);
-        }
-        return;
-      }
-      
-      // Load cart items
-      final cartItems = await _cartService.getCartItems();
-      
-      if (cartItems.isEmpty) {
-        setState(() {
-          _cartItems = [];
-          _listings = [];
-          _subtotal = 0.0;
-          _total = 0.0;
-          _isLoading = false;
-        });
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Your cart is empty')),
-          );
-          Navigator.pop(context);
-        }
-        return;
-      }
-      
-      // Get listing details for each cart item
-      final listings = <FixedPriceListing>[];
-      for (final item in cartItems) {
-        final listing = await _cartService.getFixedPriceListing(item.itemId);
-        if (listing != null) {
-          listings.add(listing);
-        }
-      }
-      
-      // Calculate totals
-      double subtotal = 0.0;
-      for (int i = 0; i < cartItems.length; i++) {
-        final item = cartItems[i];
-        final listing = listings.firstWhere(
-          (l) => l.id == item.itemId,
-          orElse: () => throw Exception('Listing not found'),
-        );
-        subtotal += listing.price * item.quantity;
-      }
-      
-      // Calculate tax (assuming 5% tax rate)
-      final tax = subtotal * 0.05;
-      
-      // Calculate total
-      final total = subtotal + _shippingFee + tax;
-      
-      setState(() {
-        _cartItems = cartItems.map((item) => item.toMap()).toList();
-        _listings = listings;
-        _subtotal = subtotal;
-        _tax = tax;
-        _total = total;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading cart: $e')),
-        );
-      }
-    }
+  void _updateDeliveryAddress(Map<String, dynamic> address) {
+    setState(() {
+      _deliveryAddress = address;
+    });
+  }
+
+  void _updateShippingMethod(String method, double fee) {
+    setState(() {
+      _shippingFee = fee;
+      _total = _subtotal + _shippingFee + _tax;
+    });
   }
 
   Future<void> _processPayment() async {
+    if (_auction == null) return;
+    
     // Validate all required information
     if (_selectedPaymentMethod == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -181,10 +164,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             .eq('id', user.id);
       }
       
-      // Create order in the database
+      // Create the auction order
       final orderId = await _paymentService.createOrder(
         userId: user.id,
-        items: _cartItems,
+        items: [
+          {
+            'item_id': _auction!.id,
+            'quantity': 1,
+            'is_auction': true
+          }
+        ],
         subtotal: _subtotal,
         shipping: _shippingFee,
         tax: _tax,
@@ -204,8 +193,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       
       if (!paymentSuccess) throw Exception('Payment processing failed');
       
-      // Clear cart after successful payment
-      await _cartService.clearCart();
+      // Mark auction as paid
+      await _supabase
+          .from('auctions')
+          .update({
+            'is_paid': true,
+            'order_id': orderId,
+            'paid_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', _auction!.id);
       
       if (mounted) {
         // Navigate to order confirmation page
@@ -226,34 +222,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  void _updateDeliveryAddress(Map<String, dynamic> address) {
-    setState(() {
-      _deliveryAddress = address;
-    });
-  }
-
-  void _updateShippingMethod(String method, double fee) {
-    setState(() {
-      _shippingFee = fee;
-      _total = _subtotal + _shippingFee + _tax;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Checkout'),
+        title: const Text('Complete Purchase'),
       ),
-      body: _isLoading
+      body: _isLoading || _auction == null
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Order summary section
-                  _buildOrderSummary(),
+                  // Auction summary
+                  _buildAuctionSummary(),
                   
                   const SizedBox(height: 24),
                   
@@ -289,7 +272,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  Widget _buildOrderSummary() {
+  Widget _buildAuctionSummary() {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(
@@ -300,130 +283,178 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Order Summary',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              children: [
+                const Icon(Icons.emoji_events, color: Colors.amber),
+                const SizedBox(width: 8),
+                const Text(
+                  'Congratulations! You won this auction',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             
-            // Order items
-            ...List.generate(_cartItems.length, (index) {
-              final item = _cartItems[index];
-              final listing = _listings.firstWhere(
-                (l) => l.id == item['item_id'],
-                orElse: () => throw Exception('Listing not found'),
-              );
-              final quantity = item['quantity'] as int;
-              final itemTotal = listing.price * quantity;
-              
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Item image
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: SizedBox(
-                        width: 60,
-                        height: 60,
-                        child: listing.imageUrls.isNotEmpty
-                            ? Image.network(
-                                listing.imageUrls.first,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                  color: Colors.grey[300],
-                                  child: const Icon(
-                                    Icons.image_not_supported,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              )
-                            : Container(
-                                color: Colors.grey[300],
-                                child: const Icon(
-                                  Icons.image,
-                                  color: Colors.grey,
-                                ),
-                              ),
+            // Auction details
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Auction image
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(
+                    width: 80,
+                    height: 80,
+                    child: _auction!.imageUrls.isNotEmpty
+                        ? Image.network(
+                            _auction!.imageUrls.first,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.image_not_supported, size: 40),
+                            ),
+                          )
+                        : Container(
+                            color: Colors.grey[300],
+                            child: const Icon(Icons.image, size: 40),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                
+                // Auction information
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _auction!.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Winning bid: ${formatCurrency(_auction!.highestBid)}',
+                        style: TextStyle(
+                          color: Theme.of(context).primaryColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Auction ended: ${formatDate(_auction!.endTime)}',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Seller information
+            if (_sellerProfile != null)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundImage: _sellerProfile!['avatar_url'] != null
+                          ? NetworkImage(_sellerProfile!['avatar_url'])
+                          : null,
+                      child: _sellerProfile!['avatar_url'] == null
+                          ? const Icon(Icons.person, size: 16)
+                          : null,
                     ),
-                    const SizedBox(width: 12),
-                    
-                    // Item details
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            listing.title,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Qty: $quantity × ${formatCurrency(listing.price)}',
+                          const Text(
+                            'Seller:',
                             style: TextStyle(
-                              color: Colors.grey[600],
                               fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          Text(
+                            _sellerProfile!['display_name'] ?? 
+                            _sellerProfile!['email'] ?? 
+                            'Plant Enthusiast',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    
-                    // Item price
-                    Text(
-                      formatCurrency(itemTotal),
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
                   ],
                 ),
-              );
-            }),
+              ),
             
-            const Divider(),
+            const Divider(height: 32),
             
-            // Subtotal
+            // Cost breakdown
+            const Text(
+              'Cost Breakdown',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Subtotal'),
+                const Text('Auction price:'),
                 Text(formatCurrency(_subtotal)),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             
-            // Shipping
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Shipping'),
+                const Text('Shipping:'),
                 Text(formatCurrency(_shippingFee)),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             
-            // Tax
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Tax (5%)'),
+                const Text('Tax (5%):'),
                 Text(formatCurrency(_tax)),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             
-            // Total
+            const Divider(),
+            
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Total',
+                  'Total:',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -431,9 +462,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
                 Text(
                   formatCurrency(_total),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    color: Theme.of(context).primaryColor,
                   ),
                 ),
               ],
@@ -615,7 +647,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
         const SizedBox(height: 16),
         
-        // Place order button
+        // Complete purchase button
         SizedBox(
           width: double.infinity,
           height: 50,
@@ -638,7 +670,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
                   )
                 : const Text(
-                    'Place Order',
+                    'Complete Purchase',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -650,7 +682,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         // Terms and policies text
         const SizedBox(height: 12),
         Text(
-          'By placing your order, you agree to Kutanda\'s terms and conditions and privacy policy.',
+          'By completing your purchase, you agree to Kutanda\'s terms and conditions and privacy policy.',
           style: TextStyle(
             color: Colors.grey[600],
             fontSize: 12,

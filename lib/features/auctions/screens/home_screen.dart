@@ -75,10 +75,15 @@ class HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Kutanda Plant Auction'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-          ),
+          _isLoading
+              ? const Padding(
+                  padding: EdgeInsets.all(10),
+                  child: CircularProgressIndicator(color: Colors.white),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.logout),
+                  onPressed: _logout,
+                ),
         ],
       ),
       body: Center(

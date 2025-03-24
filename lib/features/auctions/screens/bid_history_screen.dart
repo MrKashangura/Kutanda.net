@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/utils/helpers.dart';
 import '../../../data/models/auction_model.dart';
 import '../../../shared/widgets/bottom_navigation.dart';
-import '../services/auction_service.dart';
 import 'auction_detail_screen.dart';
 
 class BidHistoryScreen extends StatefulWidget {
@@ -17,7 +16,6 @@ class BidHistoryScreen extends StatefulWidget {
 
 class _BidHistoryScreenState extends State<BidHistoryScreen> with SingleTickerProviderStateMixin {
   final SupabaseClient _supabase = Supabase.instance.client;
-  final AuctionService _auctionService = AuctionService();
   
   late TabController _tabController;
   bool _isLoading = true;
@@ -25,7 +23,7 @@ class _BidHistoryScreenState extends State<BidHistoryScreen> with SingleTickerPr
   List<Map<String, dynamic>> _activeBids = [];
   List<Map<String, dynamic>> _completedBids = [];
   List<Map<String, dynamic>> _wonBids = [];
-  Map<String, Auction?> _auctionCache = {};
+  final Map<String, Auction?> _auctionCache = {};
   
   // Stats
   int _totalBids = 0;

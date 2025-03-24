@@ -26,8 +26,8 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
   List<Map<String, dynamic>> _csrPerformance = [];
   Map<String, dynamic> _teamAverage = {};
   int _selectedTimeRange = 7; // Default to 7 days
-  List<Map<String, dynamic>> _unassignedTickets = [];
   List<Map<String, dynamic>> _csrAccounts = [];
+  List<Map<String, dynamic>> _unassignedTickets = [];
   String? _selectedCsrId;
   
   final List<int> _timeRangeOptions = [7, 30, 90];

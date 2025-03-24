@@ -337,6 +337,52 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> {
               ),
             ),
             const SizedBox(height: 8),
+            // Ticket Volume by Hour
+            const Text(
+              'Ticket Volume by Hour',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 100,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: 24,
+                itemBuilder: (context, hour) {
+                  final count = _ticketVolumeByHour[hour] ?? 0;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            width: 20,
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            alignment: Alignment.bottomCenter,
+                            child: Container(
+                              width: 20,
+                              height: count > 0 ? 80 * (count / (_ticketVolumeByHour.values.reduce((max, value) => max > value ? max : value))) : 0,
+                              decoration: BoxDecoration(
+                                color: Colors.blue,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Text('${hour.toString().padLeft(2, '0')}h'),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
             // Simple ticket status bar
             Container(
               height: 40,

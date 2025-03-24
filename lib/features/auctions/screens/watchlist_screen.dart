@@ -4,7 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/models/auction_model.dart';
 import '../../../data/models/fixed_price_listing_model.dart';
 import '../../../shared/widgets/bottom_navigation.dart';
-import '../services/auction_service.dart';
 import '../widgets/auction_card.dart';
 import '../widgets/fixed_price_card.dart';
 import 'auction_detail_screen.dart';
@@ -17,7 +16,6 @@ class WatchlistScreen extends StatefulWidget {
 }
 
 class _WatchlistScreenState extends State<WatchlistScreen> with SingleTickerProviderStateMixin {
-  final AuctionService _auctionService = AuctionService();
   final SupabaseClient _supabase = Supabase.instance.client;
   
   late TabController _tabController;

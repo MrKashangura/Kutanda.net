@@ -632,7 +632,7 @@ class SupportTicketService {
   Future<int> reassignTickets(String fromCsrId, String toCsrId) async {
     try {
       // Only reassign open and in-progress tickets
-      final result = await _supabase
+      final reassignedCount = (await _supabase
           .from('support_tickets')
           .update({
             'assigned_csr_id': toCsrId,
@@ -642,10 +642,7 @@ class SupportTicketService {
           .inFilter('status', [
             TicketStatus.open.toString().split('.').last,
             TicketStatus.inProgress.toString().split('.').last,
-          ]);
-      
-      // For Supabase, count the affected rows
-      int reassignedCount = result.length;  // This might need adjustment based on the actual return value
+          ])).length;
       
       log('✅ Reassigned $reassignedCount tickets from $fromCsrId to $toCsrId');
       return reassignedCount;

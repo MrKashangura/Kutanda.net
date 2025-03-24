@@ -42,8 +42,8 @@ class _SearchExploreScreenState extends State<SearchExploreScreen> with SingleTi
   bool _activeOnly = true;
   String _sortBy = 'newest';
   
-  double _minPrice = 0;
-  double _maxPrice = 1000;
+  final double _minPrice = 0;
+  final double _maxPrice = 1000;
 
   @override
   void initState() {

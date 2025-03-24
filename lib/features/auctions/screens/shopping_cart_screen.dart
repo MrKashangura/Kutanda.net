@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/utils/helpers.dart';
+import '../../../data/models/auction_model.dart';
 import '../../../data/models/fixed_price_listing_model.dart';
 import '../../../shared/widgets/bottom_navigation.dart';
 import '../services/cart_service.dart';
-import '../widgets/cart_item_widget.dart';
+import 'checkout_screen.dart';
 
 class ShoppingCartScreen extends StatefulWidget {
   const ShoppingCartScreen({super.key});
@@ -20,9 +21,14 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   
   bool _isLoading = true;
-  List<Map<String, dynamic>> _cartItems = [];
-  List<FixedPriceListing> _listings = [];
+  List<CartItem> _cartItems = [];
+  Map<String, FixedPriceListing?> _fixedPriceListings = {};
+  Map<String, Auction?> _auctions = {};
+  double _subtotal = 0.0;
+  double _shippingFee = 0.0;
+  double _tax = 0.0;
   double _total = 0.0;
+  bool _isProcessingCheckout = false;
 
   @override
   void initState() {
@@ -48,42 +54,30 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen> {
       // Load cart items
       final cartItems = await _cartService.getCartItems();
       
-      if (cartItems.isEmpty) {
-        setState(() {
-          _cartItems = [];
-          _listings = [];
-          _total = 0.0;
-          _isLoading = false;
-        });
-        return;
-      }
-      
-      // Get listing details for each cart item
-      final listings = <FixedPriceListing>[];
+      // Load fixed price listings and auctions details
       for (final item in cartItems) {
-        final listing = await _cartService.getFixedPriceListing(item['item_id']);
-        if (listing != null) {
-          listings.add(listing);
+        if (item.itemType == 'fixed_price') {
+          final listing = await _cartService.getFixedPriceListing(item.itemId);
+          _fixedPriceListings[item.itemId] = listing;
+        } else if (item.itemType == 'auction') {
+          final auction = await _cartService.getAuction(item.itemId);
+          _auctions[item.itemId] = auction;
         }
       }
       
-      // Calculate total
-      double total = 0.0;
-      for (int i = 0; i < cartItems.length; i++) {
-        final item = cartItems[i];
-        final listing = listings.firstWhere(
-          (l) => l.id == item['item_id'],
-          orElse: () => throw Exception('Listing not found'),
-        );
-        total += listing.price * (item['quantity'] as num);
-      }
+      // Calculate totals
+      final totals = await _cartService.calculateCartTotals();
       
-      setState(() {
-        _cartItems = cartItems;
-        _listings = listings;
-        _total = total;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _cartItems = cartItems;
+          _subtotal = totals['subtotal'] ?? 0.0;
+          _shippingFee = totals['shipping'] ?? 0.0;
+          _tax = totals['tax'] ?? 0.0;
+          _total = totals['total'] ?? 0.0;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -94,36 +88,38 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen> {
     }
   }
 
-  Future<void> _updateQuantity(FixedPriceListing listing, int quantity) async {
+  Future<void> _updateQuantity(CartItem item, int quantity) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
+      if (item.itemType == 'auction') {
+        // Auctions always have quantity of 1
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Auction items have a fixed quantity of 1')),
+        );
+        return;
+      }
       
-      // Find the cart item
-      final cartItem = _cartItems.firstWhere(
-        (item) => item['item_id'] == listing.id,
-        orElse: () => throw Exception('Cart item not found'),
-      );
+      // Check if new quantity is valid
+      final listing = _fixedPriceListings[item.itemId];
+      if (listing != null && quantity > listing.quantityAvailable) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Only ${listing.quantityAvailable} available')),
+        );
+        return;
+      }
       
-      // Update the quantity
-      await _cartService.updateCartItemQuantity(cartItem['id'], quantity);
+      // Update quantity
+      final success = await _cartService.updateCartItemQuantity(item.id, quantity);
       
-      // Update local state
-      setState(() {
-        final index = _cartItems.indexOf(cartItem);
-        _cartItems[index]['quantity'] = quantity;
-        
-        // Recalculate total
-        _total = 0.0;
-        for (int i = 0; i < _cartItems.length; i++) {
-          final item = _cartItems[i];
-          final listing = _listings.firstWhere(
-            (l) => l.id == item['item_id'],
-            orElse: () => throw Exception('Listing not found'),
+      if (success) {
+        // Reload cart to get updated totals
+        await _loadCartItems();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update quantity')),
           );
-          _total += listing.price * (item['quantity'] as num);
         }
-      });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -133,41 +129,41 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen> {
     }
   }
 
-  Future<void> _removeItem(FixedPriceListing listing) async {
+  Future<void> _removeItem(CartItem item) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
+      final success = await _cartService.removeFromCart(item.id);
       
-      // Find the cart item
-      final cartItem = _cartItems.firstWhere(
-        (item) => item['item_id'] == listing.id,
-        orElse: () => throw Exception('Cart item not found'),
-      );
-      
-      // Remove from cart
-      await _cartService.removeFromCart(cartItem['id']);
-      
-      // Update local state
-      setState(() {
-        _cartItems.removeWhere((item) => item['item_id'] == listing.id);
-        _listings.removeWhere((l) => l.id == listing.id);
-        
-        // Recalculate total
-        _total = 0.0;
-        for (int i = 0; i < _cartItems.length; i++) {
-          final item = _cartItems[i];
-          final listing = _listings.firstWhere(
-            (l) => l.id == item['item_id'],
-            orElse: () => throw Exception('Listing not found'),
+      if (success) {
+        if (mounted) {
+          setState(() {
+            _cartItems.remove(item);
+            if (item.itemType == 'fixed_price') {
+              _fixedPriceListings.remove(item.itemId);
+            } else if (item.itemType == 'auction') {
+              _auctions.remove(item.itemId);
+            }
+          });
+          
+          // Recalculate totals
+          final totals = await _cartService.calculateCartTotals();
+          
+          setState(() {
+            _subtotal = totals['subtotal'] ?? 0.0;
+            _shippingFee = totals['shipping'] ?? 0.0;
+            _tax = totals['tax'] ?? 0.0;
+            _total = totals['total'] ?? 0.0;
+          });
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Item removed from cart')),
           );
-          _total += listing.price * (item['quantity'] as num);
         }
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Item removed from cart')),
-        );
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to remove item')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -178,6 +174,29 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen> {
     }
   }
 
+  void _showRemoveDialog(CartItem item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Item'),
+        content: const Text('Are you sure you want to remove this item from your cart?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _removeItem(item);
+            },
+            child: const Text('REMOVE'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _proceedToCheckout() async {
     if (_cartItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -186,8 +205,53 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen> {
       return;
     }
     
-    // Navigate to checkout screen
-    Navigator.pushNamed(context, '/checkout');
+    setState(() => _isProcessingCheckout = true);
+    
+    try {
+      // Check inventory before proceeding
+      bool hasInventoryIssue = false;
+      
+      for (final item in _cartItems) {
+        if (item.itemType == 'fixed_price') {
+          final listing = await _cartService.getFixedPriceListing(item.itemId);
+          if (listing == null || listing.quantityAvailable < item.quantity) {
+            hasInventoryIssue = true;
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('${item.title} has insufficient inventory available')),
+              );
+            }
+            break;
+          }
+        }
+      }
+      
+      if (hasInventoryIssue) {
+        setState(() => _isProcessingCheckout = false);
+        _loadCartItems(); // Refresh cart
+        return;
+      }
+      
+      // Navigate to checkout screen
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CheckoutScreen(),
+          ),
+        ).then((_) => _loadCartItems());
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error proceeding to checkout: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessingCheckout = false);
+      }
+    }
   }
 
   @override
@@ -269,17 +333,200 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen> {
             itemCount: _cartItems.length,
             itemBuilder: (context, index) {
               final item = _cartItems[index];
-              final listing = _listings.firstWhere(
-                (l) => l.id == item['item_id'],
-                orElse: () => throw Exception('Listing not found'),
-              );
-              final quantity = item['quantity'] as int;
-              
-              return CartItemWidget(
-                listing: listing,
-                quantity: quantity,
-                onQuantityChanged: _updateQuantity,
-                onRemove: _removeItem,
+              return Dismissible(
+                key: Key('cart_${item.id}'),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 16),
+                  color: Colors.red,
+                  child: const Icon(
+                    Icons.delete,
+                    color: Colors.white,
+                  ),
+                ),
+                confirmDismiss: (direction) async {
+                  final result = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Remove Item'),
+                      content: const Text('Are you sure you want to remove this item from your cart?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('CANCEL'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('REMOVE'),
+                        ),
+                      ],
+                    ),
+                  );
+                  return result ?? false;
+                },
+                onDismissed: (direction) {
+                  _removeItem(item);
+                },
+                child: Card(
+                  margin: const EdgeInsets.all(8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Item image
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                            width: 80,
+                            height: 80,
+                            child: item.imageUrl != null
+                                ? Image.network(
+                                    item.imageUrl!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      color: Colors.grey[300],
+                                      child: const Icon(Icons.image_not_supported, size: 40),
+                                    ),
+                                  )
+                                : Container(
+                                    color: Colors.grey[300],
+                                    child: const Icon(Icons.image, size: 40),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        
+                        // Item details
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.title,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          formatCurrency(item.price),
+                                          style: TextStyle(
+                                            color: Theme.of(context).primaryColor,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: item.itemType == 'auction' 
+                                                ? Colors.purple.withOpacity(0.1) 
+                                                : Colors.blue.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: item.itemType == 'auction' 
+                                                  ? Colors.purple 
+                                                  : Colors.blue,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            item.itemType == 'auction' ? 'Auction' : 'Fixed Price',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: item.itemType == 'auction' 
+                                                  ? Colors.purple 
+                                                  : Colors.blue,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.close),
+                                    onPressed: () => _showRemoveDialog(item),
+                                    splashRadius: 24,
+                                    tooltip: 'Remove',
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              
+                              // Quantity controls
+                              if (item.itemType == 'fixed_price')
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Text('Quantity: '),
+                                        IconButton(
+                                          icon: const Icon(Icons.remove_circle_outline),
+                                          onPressed: item.quantity > 1 
+                                              ? () => _updateQuantity(item, item.quantity - 1) 
+                                              : null,
+                                          splashRadius: 20,
+                                          iconSize: 20,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '${item.quantity}',
+                                          style: const TextStyle(fontWeight: FontWeight.bold),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        IconButton(
+                                          icon: const Icon(Icons.add_circle_outline),
+                                          onPressed: () => _updateQuantity(item, item.quantity + 1),
+                                          splashRadius: 20,
+                                          iconSize: 20,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                        ),
+                                      ],
+                                    ),
+                                    Text(
+                                      formatCurrency(item.price * item.quantity),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              
+                              // Fixed quantity for auctions
+                              if (item.itemType == 'auction')
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('Winning bid'),
+                                    Text(
+                                      formatCurrency(item.price),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               );
             },
           ),
@@ -290,7 +537,7 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen> {
 
   Widget _buildCheckoutBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -301,35 +548,83 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen> {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+          // Order summary
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Subtotal:'),
+              Text(formatCurrency(_subtotal)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Shipping:'),
+              Text(formatCurrency(_shippingFee)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Tax (5%):'),
+              Text(formatCurrency(_tax)),
+            ],
+          ),
+          const Divider(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
                 'Total:',
                 style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 12,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               Text(
                 formatCurrency(_total),
-                style: const TextStyle(
+                style: TextStyle(
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  fontSize: 20,
+                  color: Theme.of(context).primaryColor,
                 ),
               ),
             ],
           ),
-          const Spacer(),
-          ElevatedButton(
-            onPressed: _proceedToCheckout,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          const SizedBox(height: 16),
+          
+          // Checkout button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isProcessingCheckout ? null : _proceedToCheckout,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              child: _isProcessingCheckout
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text(
+                      'Proceed to Checkout',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
             ),
-            child: const Text('Proceed to Checkout'),
           ),
         ],
       ),
