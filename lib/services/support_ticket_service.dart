@@ -628,30 +628,6 @@ class SupportTicketService {
     }
   }
   
-  /// Reassign tickets from one CSR to another
-  Future<int> reassignTickets(String fromCsrId, String toCsrId) async {
-    try {
-      // Only reassign open and in-progress tickets
-      final reassignedCount = (await _supabase
-          .from('support_tickets')
-          .update({
-            'assigned_csr_id': toCsrId,
-            'last_updated': DateTime.now().toIso8601String()
-          })
-          .eq('assigned_csr_id', fromCsrId)
-          .inFilter('status', [
-            TicketStatus.open.toString().split('.').last,
-            TicketStatus.inProgress.toString().split('.').last,
-          ])).length;
-      
-      log('✅ Reassigned $reassignedCount tickets from $fromCsrId to $toCsrId');
-      return reassignedCount;
-    } catch (e, stackTrace) {
-      log('❌ Error reassigning tickets: $e', error: e, stackTrace: stackTrace);
-      return 0;
-    }
-  }
-  
   /// Batch assign tickets to a CSR
   Future<int> batchAssignTickets(List<String> ticketIds, String csrId) async {
     try {
@@ -660,7 +636,7 @@ class SupportTicketService {
       }
       
       // Update all tickets in the list
-      final result = await _supabase
+      await _supabase
           .from('support_tickets')
           .update({
             'assigned_csr_id': csrId,
@@ -876,4 +852,56 @@ class SupportTicketService {
       return {};
     }
   }
+  Future<bool> reassignTickets(String fromCsrId, String toCsrId) async {
+  try {
+    // Get the CSR name for logging purposes
+    final csrResponse = await _supabase
+        .from('users')
+        .select('display_name, email')
+        .eq('id', toCsrId)
+        .single();
+    
+    final toCsrName = csrResponse['display_name'] ?? csrResponse['email'] ?? 'Unknown CSR';
+    
+    // Find all open and in-progress tickets assigned to the source CSR
+    final ticketsResponse = await _supabase
+        .from('support_tickets')
+        .select('id')
+        .eq('assigned_csr_id', fromCsrId)
+        .inFilter('status', ['open', 'inProgress']);
+    
+    final ticketIds = List<String>.from(
+      ticketsResponse.map((ticket) => ticket['id']),
+    );
+    
+    if (ticketIds.isEmpty) {
+      return true; // No tickets to reassign
+    }
+    
+    // Update all tickets to the new CSR
+    await _supabase
+        .from('support_tickets')
+        .update({
+          'assigned_csr_id': toCsrId,
+          'last_updated': DateTime.now().toIso8601String(),
+        })
+        .inFilter('id', ticketIds);
+    
+    // Add a system message to each ticket
+    for (final ticketId in ticketIds) {
+      await _supabase.from('ticket_messages').insert({
+        'ticket_id': ticketId,
+        'sender_id': 'system',
+        'content': 'Ticket reassigned to $toCsrName',
+        'is_from_csr': true,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+    }
+    
+    return true;
+  } catch (e) {
+    log('Error reassigning tickets: $e');
+    return false;
+  }
+}
 }

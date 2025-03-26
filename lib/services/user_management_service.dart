@@ -6,115 +6,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class UserManagementService {
   final SupabaseClient _supabase = Supabase.instance.client;
   
-  /// Get all users with pagination and search
-  Future<List<Map<String, dynamic>>> getUsers({
-    String? searchQuery,
-    String? roleFilter,
-    bool? onlyReported,
-    bool? onlySuspended,
-    int limit = 50,
-    int offset = 0,
-  }) async {
-    try {
-      PostgrestFilterBuilder query = _supabase
-          .from('users')
-          .select('uid, email, display_name, role, created_at, is_reported, is_suspended, is_banned');
-      
-      // Apply filters
-      if (searchQuery != null && searchQuery.isNotEmpty) {
-        query = query.or('email.ilike.%$searchQuery%,display_name.ilike.%$searchQuery%');
-      }
-      
-      if (roleFilter != null) {
-        query = query.eq('role', roleFilter);
-      }
-      
-      if (onlyReported == true) {
-        query = query.eq('is_reported', true);
-      }
-      
-      if (onlySuspended == true) {
-        query = query.eq('is_suspended', true);
-      }
-      
-      // Apply pagination and ordering
-      final response = await query
-          .order('created_at', ascending: false)
-          .range(offset, offset + limit - 1);
-      
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e, stackTrace) {
-      log('❌ Error getting users: $e', error: e, stackTrace: stackTrace);
-      return [];
-    }
-  }
-  
-  /// Get a single user's complete profile
-  Future<Map<String, dynamic>?> getUserProfile(String userId) async {
-    try {
-      final userResponse = await _supabase
-          .from('users')
-          .select('*')
-          .eq('id', userId)
-          .single();
-      
-      // Get the user's KYC status if they're a seller
-      final sellerProfile = await _supabase
-          .from('sellers')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle();
-      
-      // Get the user's activity statistics
-      final auctionsCreated = await _supabase
-          .from('auctions')
-          .select('uid')
-          .eq('seller_id', userId)
-          .count();
-      
-      final bidsPlaced = await _supabase
-          .from('bids')
-          .select('uid')
-          .eq('bidder_id', userId)
-          .count();
-      
-      final reviewsReceived = await _supabase
-          .from('reviews')
-          .select('uid')
-          .eq('user_id', userId)
-          .count();
-      
-      final supportTickets = await _supabase
-          .from('support_tickets')
-          .select('uid, status')
-          .eq('user_id', userId);
-      
-      // Count tickets by status
-      Map<String, int> ticketsByStatus = {};
-      for (final ticket in supportTickets) {
-        final status = ticket['status'] as String;
-        ticketsByStatus[status] = (ticketsByStatus[status] ?? 0) + 1;
-      }
-      
-      final userProfile = {
-        ...Map<String, dynamic>.from(userResponse),
-        'seller_profile': sellerProfile,
-        'activity': {
-          'auctions_created': auctionsCreated,
-          'bids_placed': bidsPlaced,
-          'reviews_received': reviewsReceived,
-          'total_tickets': supportTickets.length,
-          'tickets_by_status': ticketsByStatus,
-        }
-      };
-      
-      return userProfile;
-    } catch (e, stackTrace) {
-      log('❌ Error getting user profile: $e', error: e, stackTrace: stackTrace);
-      return null;
-    }
-  }
-  
   /// Get a user's verification history
   Future<List<Map<String, dynamic>>> getUserVerificationHistory(String userId) async {
     try {
@@ -385,106 +276,6 @@ class UserManagementService {
       return [];
     }
   }
-  
-  /// Get user registration statistics for analytics
-  Future<Map<String, dynamic>> getUserRegistrationStats({int? lastDays}) async {
-    try {
-      PostgrestFilterBuilder query = _supabase
-          .from('users')
-          .select('created_at, role');
-      
-      // Filter by date range if specified
-      if (lastDays != null) {
-        final cutoffDate = DateTime.now().subtract(Duration(days: lastDays));
-        query = query.gte('created_at', cutoffDate.toIso8601String());
-      }
-      
-      final users = await query;
-      
-      // Group by day
-      Map<String, int> registrationsByDay = {};
-      
-      // Group by role
-      Map<String, int> registrationsByRole = {
-        'buyer': 0,
-        'seller': 0,
-        'admin': 0,
-        'csr': 0,
-      };
-      
-      for (final user in users) {
-        final date = DateTime.parse(user['created_at']).toIso8601String().split('T')[0];
-        registrationsByDay[date] = (registrationsByDay[date] ?? 0) + 1;
-        
-        final role = user['role'] as String;
-        registrationsByRole[role] = (registrationsByRole[role] ?? 0) + 1;
-      }
-      
-      return {
-        'total_users': users.length,
-        'registrations_by_day': registrationsByDay,
-        'registrations_by_role': registrationsByRole,
-      };
-    } catch (e, stackTrace) {
-      log('❌ Error getting user registration stats: $e', error: e, stackTrace: stackTrace);
-      return {};
-    }
-  }
-  
-  /// Get verification statistics
-  Future<Map<String, dynamic>> getVerificationStats({int? lastDays}) async {
-    try {
-      PostgrestFilterBuilder query = _supabase
-          .from('verification_history')
-          .select('action, timestamp');
-      
-      // Filter by date range if specified
-      if (lastDays != null) {
-        final cutoffDate = DateTime.now().subtract(Duration(days: lastDays));
-        query = query.gte('timestamp', cutoffDate.toIso8601String());
-      }
-      
-      final verifications = await query;
-      
-      // Count by action type
-      int approved = 0;
-      int rejected = 0;
-      
-      for (final verification in verifications) {
-        if (verification['action'] == 'approved') {
-          approved++;
-        } else if (verification['action'] == 'rejected') {
-          rejected++;
-        }
-      }
-      
-      // Group by day
-      Map<String, Map<String, int>> verificationsByDay = {};
-      
-      for (final verification in verifications) {
-        final date = DateTime.parse(verification['timestamp']).toIso8601String().split('T')[0];
-        final action = verification['action'] as String;
-        
-        if (!verificationsByDay.containsKey(date)) {
-          verificationsByDay[date] = {'approved': 0, 'rejected': 0};
-        }
-        
-        verificationsByDay[date]![action] = (verificationsByDay[date]![action] ?? 0) + 1;
-      }
-      
-      return {
-        'total_verifications': verifications.length,
-        'approved': approved,
-        'rejected': rejected,
-        'approval_rate': verifications.isNotEmpty ? approved / verifications.length : 0,
-        'verifications_by_day': verificationsByDay,
-      };
-    } catch (e, stackTrace) {
-      log('❌ Error getting verification stats: $e', error: e, stackTrace: stackTrace);
-      return {};
-    }
-  }
-  
   /// Get CSR permissions
   Future<Map<String, bool>> getCsrPermissions(String csrId) async {
     try {
@@ -715,6 +506,228 @@ class UserManagementService {
     } catch (e, stackTrace) {
       log('❌ Error creating CSR account: $e', error: e, stackTrace: stackTrace);
       return null;
+    }
+  }
+  /// Get users with optional filtering
+  Future<List<Map<String, dynamic>>> getUsers({
+    String? searchQuery,
+    String? roleFilter,
+    bool? onlyReported,
+  }) async {
+    try {
+      var query = _supabase.from('users').select();
+      
+      // Apply filters if provided
+      if (searchQuery != null && searchQuery.isNotEmpty) {
+        query = query.or('display_name.ilike.%$searchQuery%,email.ilike.%$searchQuery%');
+      }
+      
+      if (roleFilter != null) {
+        query = query.eq('role', roleFilter);
+      }
+      
+      if (onlyReported == true) {
+        query = query.eq('is_reported', true);
+      }
+      
+      final response = await query.order('created_at', ascending: false);
+      
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      log('Error getting users: $e');
+      return [];
+    }
+  }
+
+  /// Get user profile
+  Future<Map<String, dynamic>?> getUserProfile(String userId) async {
+    try {
+      final response = await _supabase
+          .from('users')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      
+      return response != null ? Map<String, dynamic>.from(response) : null;
+    } catch (e) {
+      log('Error getting user profile: $e');
+      return null;
+    }
+  }
+  
+  /// Update user permissions
+  Future<bool> updateUserPermissions(String userId, Map<String, bool> permissions) async {
+    try {
+      // First, check if user exists
+      final userExists = await _supabase
+        .from('users')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+        
+      if (userExists == null) {
+        throw Exception('User not found');
+      }
+      
+      // Check if permissions table exists, if not create it
+      await _supabase
+        .from('user_permissions')
+        .upsert({
+          'user_id': userId,
+          'permissions': permissions,
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+      
+      return true;
+    } catch (e) {
+      log('Error updating user permissions: $e');
+      return false;
+    }
+  }
+  
+  /// Deactivate a CSR account
+  Future<bool> deactivateCSR(String csrId) async {
+    try {
+      // Update the user record to mark as inactive
+      await _supabase
+        .from('users')
+        .update({
+          'is_active': false,
+          'deactivated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', csrId);
+      
+      // Log the action
+      await _supabase
+        .from('user_action_history')
+        .insert({
+          'user_id': csrId,
+          'action_type': 'deactivate',
+          'action_by': _supabase.auth.currentUser?.id,
+          'timestamp': DateTime.now().toIso8601String(),
+          'notes': 'CSR account deactivated',
+        });
+      
+      return true;
+    } catch (e) {
+      log('Error deactivating CSR account: $e');
+      return false;
+    }
+  }
+  
+  /// Get user registration statistics
+  Future<Map<String, dynamic>> getUserRegistrationStats({
+    int? lastDays,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final startDate = lastDays != null 
+        ? now.subtract(Duration(days: lastDays))
+        : now.subtract(const Duration(days: 30)); // Default to 30 days
+      
+      final startDateString = startDate.toIso8601String();
+      
+      // Get total users registered in the period
+      final totalUsersResponse = await _supabase
+        .from('users')
+        .select('id')
+        .gte('created_at', startDateString)
+        .count();
+      
+      final totalUsers = totalUsersResponse.count;
+      
+      // Get users by role
+      final roleTypes = ['buyer', 'seller', 'csr', 'admin'];
+      Map<String, int> registrationsByRole = {};
+      
+      for (final role in roleTypes) {
+        final response = await _supabase
+          .from('users')
+          .select('id')
+          .eq('role', role)
+          .gte('created_at', startDateString)
+          .count();
+        
+        registrationsByRole[role] = response.count;
+      }
+      
+      return {
+        'total_users': totalUsers,
+        'registrations_by_role': registrationsByRole,
+        'period_days': lastDays ?? 30,
+      };
+    } catch (e) {
+      log('Error getting user registration stats: $e');
+      return {
+        'total_users': 0,
+        'registrations_by_role': {},
+        'period_days': lastDays ?? 30,
+      };
+    }
+  }
+  
+  /// Get verification statistics
+  Future<Map<String, dynamic>> getVerificationStats({
+    int? lastDays,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final startDate = lastDays != null 
+        ? now.subtract(Duration(days: lastDays))
+        : now.subtract(const Duration(days: 30)); // Default to 30 days
+      
+      final startDateString = startDate.toIso8601String();
+      
+      // Get total verifications
+      final totalVerificationsResponse = await _supabase
+        .from('verification_requests')
+        .select('id')
+        .gte('created_at', startDateString)
+        .count();
+      
+      final totalVerifications = totalVerificationsResponse.count;
+      
+      // Get approved verifications
+      final approvedResponse = await _supabase
+        .from('verification_requests')
+        .select('id')
+        .eq('status', 'approved')
+        .gte('created_at', startDateString)
+        .count();
+      
+      final approved = approvedResponse.count;
+      
+      // Get rejected verifications
+      final rejectedResponse = await _supabase
+        .from('verification_requests')
+        .select('id')
+        .eq('status', 'rejected')
+        .gte('created_at', startDateString)
+        .count();
+      
+      final rejected = rejectedResponse.count;
+      
+      // Calculate approval rate
+      final approvalRate = totalVerifications > 0 
+        ? approved / totalVerifications 
+        : 0.0;
+      
+      return {
+        'total_verifications': totalVerifications,
+        'approved': approved,
+        'rejected': rejected,
+        'approval_rate': approvalRate,
+        'period_days': lastDays ?? 30,
+      };
+    } catch (e) {
+      log('Error getting verification stats: $e');
+      return {
+        'total_verifications': 0,
+        'approved': 0,
+        'rejected': 0,
+        'approval_rate': 0.0,
+        'period_days': lastDays ?? 30,
+      };
     }
   }
 }

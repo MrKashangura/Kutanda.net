@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/utils/helpers.dart';
-import '../../../services/user_management_service.dart';
 import '../widgets/admin_drawer.dart';
 
 class AdminUserManagementScreen extends StatefulWidget {
@@ -13,7 +12,6 @@ class AdminUserManagementScreen extends StatefulWidget {
 }
 
 class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
-  final UserManagementService _userService = UserManagementService();
   final TextEditingController _searchController = TextEditingController();
   
   bool _isLoading = false;

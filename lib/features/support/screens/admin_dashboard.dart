@@ -3,7 +3,6 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../services/user_management_service.dart';
 import '../../../shared/services/onesignal_service.dart';
 import '../../../shared/services/session_service.dart';
 import '../../../shared/widgets/custom_button.dart';
@@ -24,7 +23,6 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> {
   final SupabaseClient _supabase = Supabase.instance.client;
-  final UserManagementService _userService = UserManagementService();
   
   bool _isLoading = true;
   Map<String, dynamic> _dashboardStats = {};
@@ -584,9 +582,6 @@ Future<void> _loadDashboardData() async {
   }
 
   Widget _buildRecentActivityList() {
-    // Using string_extensions.dart for .capitalize()
-    String formatContentType(String type) => type.capitalize();
-    
     if (_recentActivity.isEmpty) {
       return const Card(
         child: Padding(

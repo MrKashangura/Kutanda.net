@@ -27,7 +27,7 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
   Map<String, dynamic> _teamAverage = {};
   int _selectedTimeRange = 7; // Default to 7 days
   List<Map<String, dynamic>> _csrAccounts = [];
-  List<Map<String, dynamic>> _unassignedTickets = [];
+  int _unassignedTicketsCount = 0;
   String? _selectedCsrId;
   
   final List<int> _timeRangeOptions = [7, 30, 90];
@@ -57,8 +57,9 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
       // Calculate team averages
       final teamAverage = _calculateTeamAverage(performance);
       
-      // Get unassigned tickets
+      // Get unassigned tickets count
       final tickets = await _ticketService.getTicketCountsByStatus();
+      final unassignedCount = tickets['unassigned'] ?? 0;
       
       // Get CSR accounts
       final csrAccounts = await _userService.getUsers(roleFilter: 'csr');
@@ -66,7 +67,7 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
       setState(() {
         _csrPerformance = performance;
         _teamAverage = teamAverage;
-        _unassignedTickets = []; // This would be populated with actual data
+        _unassignedTicketsCount = unassignedCount;
         _csrAccounts = csrAccounts;
         _isLoading = false;
       });
@@ -1024,7 +1025,7 @@ class _AdminCsrManagementScreenState extends State<AdminCsrManagementScreen> wit
                       Expanded(
                         child: _buildMetricCard(
                           'Unassigned Tickets',
-                          '12', // Replace with actual data
+                          _unassignedTicketsCount.toString(),
                           Icons.assignment_late,
                           Colors.orange,
                         ),
