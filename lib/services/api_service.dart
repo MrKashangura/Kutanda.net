@@ -10,7 +10,10 @@ class ApiService {
   static const String baseUrl = 'https://api.kutanda.com'; // Replace with your actual API URL
   final _storage = const FlutterSecureStorage();
   final _roleService = RoleService();
-  final SupabaseClient supabase = Supabase.instance.client;
+  final SupabaseClient supabase;
+
+  // Allow SupabaseClient injection for testing, default to Supabase.instance.client for production
+  ApiService({SupabaseClient? supabaseInstance}) : supabase = supabaseInstance ?? Supabase.instance.client;
 
   /// Get the token from secure storage
   Future<String?> getToken() async {
@@ -77,6 +80,87 @@ class ApiService {
       return response.data;
     } catch (e) {
       log('Error making POST request: $e');
+      return null;
+    }
+  }
+
+  /// Make authenticated PUT request
+  Future<Map<String, dynamic>?> put(String endpoint, Map<String, dynamic> data) async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        log('No authenticated user');
+        return null;
+      }
+      
+      final response = await supabase.functions.invoke(
+        endpoint,
+        method: HttpMethod.put,
+        body: data,
+      );
+      
+      if (response.status != 200) {
+        log('Error: ${response.status}');
+        return null;
+      }
+      
+      return response.data;
+    } catch (e) {
+      log('Error making PUT request: $e');
+      return null;
+    }
+  }
+
+  /// Make authenticated DELETE request
+  Future<Map<String, dynamic>?> delete(String endpoint, {Map<String, dynamic>? data}) async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        log('No authenticated user');
+        return null;
+      }
+      
+      final response = await supabase.functions.invoke(
+        endpoint,
+        method: HttpMethod.delete,
+        body: data,
+      );
+      
+      if (response.status != 200) {
+        log('Error: ${response.status}');
+        return null;
+      }
+      
+      return response.data;
+    } catch (e) {
+      log('Error making DELETE request: $e');
+      return null;
+    }
+  }
+
+  /// Make authenticated PATCH request
+  Future<Map<String, dynamic>?> patch(String endpoint, Map<String, dynamic> data) async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        log('No authenticated user');
+        return null;
+      }
+      
+      final response = await supabase.functions.invoke(
+        endpoint,
+        method: HttpMethod.patch,
+        body: data,
+      );
+      
+      if (response.status != 200) {
+        log('Error: ${response.status}');
+        return null;
+      }
+      
+      return response.data;
+    } catch (e) {
+      log('Error making PATCH request: $e');
       return null;
     }
   }
