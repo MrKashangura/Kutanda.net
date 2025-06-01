@@ -1,5 +1,6 @@
 // lib/features/auth/screens/login_screen.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 
 import '../../../shared/services/session_service.dart';
 import '../../../shared/widgets/custom_button.dart';
@@ -49,13 +50,13 @@ class _LoginScreenState extends State<LoginScreen> {
           final role = session['role'];
           
           if (role == 'buyer') {
-            Navigator.pushReplacementNamed(context, '/buyer_dashboard');
+            context.go('/buyer_dashboard');
           } else if (role == 'seller') {
-            Navigator.pushReplacementNamed(context, '/seller_dashboard');
+            context.go('/seller_dashboard');
           } else if (role == 'admin') {
-            Navigator.pushReplacementNamed(context, '/admin_dashboard');
+            context.go('/admin_dashboard');
           } else if (role == 'csr') {
-            Navigator.pushReplacementNamed(context, '/csr_dashboard');
+            context.go('/csr_dashboard');
           }
         }
       }
@@ -91,13 +92,13 @@ class _LoginScreenState extends State<LoginScreen> {
           final role = result['role'];
           
           if (role == 'buyer') {
-            Navigator.pushReplacementNamed(context, '/buyer_dashboard');
+            context.go('/buyer_dashboard');
           } else if (role == 'seller') {
-            Navigator.pushReplacementNamed(context, '/seller_dashboard');
+            context.go('/seller_dashboard');
           } else if (role == 'admin') {
-            Navigator.pushReplacementNamed(context, '/admin_dashboard');
+            context.go('/admin_dashboard');
           } else if (role == 'csr') {
-            Navigator.pushReplacementNamed(context, '/csr_dashboard');
+            context.go('/csr_dashboard');
           }
         }
       } else {
@@ -116,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _handleSocialSignIn(bool isSuccess, String message, bool isNewUser) {
     if (isSuccess) {
       // Navigate to buyer dashboard since social login defaults to buyer role
-      Navigator.pushReplacementNamed(context, '/buyer_dashboard');
+      context.go('/buyer_dashboard');
     } else {
       setState(() => _errorMessage = message);
     }
@@ -198,7 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () {
-                            Navigator.pushNamed(context, '/forgot_password');
+                            context.push('/forgot_password');
                           },
                           child: const Text('Forgot Password?'),
                         ),
@@ -275,10 +276,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     TextButton(
                       onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const register.RegisterScreen()),
-                        );
+                        context.push('/register');
                       },
                       child: const Text('Register Now'),
                     ),

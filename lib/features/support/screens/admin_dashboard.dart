@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../shared/services/onesignal_service.dart';
@@ -807,57 +808,58 @@ Future<void> _loadDashboardData() async {
           ListTile(
             leading: const Icon(Icons.dashboard),
             title: const Text('Dashboard'),
-            selected: true,
+            selected: true, // This might need to be dynamic based on current route if using GoRouter for drawer too
             onTap: () {
-              Navigator.pop(context);
+              context.pop(); // Close drawer
+              // context.go('/admin_dashboard'); // Already on dashboard, or use if needed
             },
           ),
           ListTile(
             leading: const Icon(Icons.people),
             title: const Text('User Management'),
             onTap: () {
-              Navigator.pop(context);
-              _navigateToUserManagement();
+              context.pop(); // Close drawer
+              context.push('/admin_users');
             },
           ),
           ListTile(
             leading: const Icon(Icons.support_agent),
             title: const Text('CSR Management'),
             onTap: () {
-              Navigator.pop(context);
-              _navigateToCSRManagement();
+              context.pop(); // Close drawer
+              context.push('/admin_csrs');
             },
           ),
           ListTile(
             leading: const Icon(Icons.verified_user),
             title: const Text('Seller Verification'),
             onTap: () {
-              Navigator.pop(context);
-              _navigateToSellerVerification();
+              context.pop(); // Close drawer
+              context.push('/admin_content'); // Assuming this is the correct route for seller verification
             },
           ),
           ListTile(
             leading: const Icon(Icons.content_paste),
             title: const Text('Content Moderation'),
             onTap: () {
-              Navigator.pop(context);
-              _navigateToContentModeration();
+              context.pop(); // Close drawer
+              context.push('/admin_content');
             },
           ),
           ListTile(
             leading: const Icon(Icons.analytics),
             title: const Text('Analytics'),
             onTap: () {
-              Navigator.pop(context);
-              _navigateToAnalytics();
+              context.pop(); // Close drawer
+              context.push('/admin_analytics');
             },
           ),
           ListTile(
             leading: const Icon(Icons.settings),
             title: const Text('System Settings'),
             onTap: () {
-              Navigator.pop(context);
-              _navigateToPlatformSettings();
+              context.pop(); // Close drawer
+              context.push('/admin_config');
             },
           ),
           const Divider(),
@@ -865,16 +867,16 @@ Future<void> _loadDashboardData() async {
             leading: const Icon(Icons.help),
             title: const Text('Help & Documentation'),
             onTap: () {
-              Navigator.pop(context);
-              _showHelpDialog();
+              context.pop(); // Close drawer
+              _showHelpDialog(); // This method doesn't perform navigation
             },
           ),
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Logout'),
             onTap: () {
-              Navigator.pop(context);
-              _logout();
+              context.pop(); // Close drawer
+              _logout(); // _logout method already uses context.go
             },
           ),
         ],
@@ -1023,46 +1025,28 @@ Future<void> _loadDashboardData() async {
   
   // Navigation methods for each section
   void _navigateToUserManagement() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const AdminUserManagementScreen()),
-    );
+    context.push('/admin_users');
   }
 
   void _navigateToCSRManagement() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const AdminCsrManagementScreen()),
-    );
+    context.push('/admin_csrs');
   }
 
   void _navigateToContentModeration() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const AdminContentModerationScreen()),
-    );
+    context.push('/admin_content');
   }
 
   void _navigateToSellerVerification() {
     // This could redirect to a specific tab in the Content Moderation screen
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const AdminContentModerationScreen()),
-    );
+    context.push('/admin_content'); // Assuming it navigates to the same screen as content moderation for now
   }
 
   void _navigateToAnalytics() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const AdminAnalyticsScreen()),
-    );
+    context.push('/admin_analytics');
   }
 
   void _navigateToPlatformSettings() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const AdminSystemConfigScreen()),
-    );
+    context.push('/admin_config');
   }
 
   Future<void> _logout() async {
@@ -1079,10 +1063,7 @@ Future<void> _loadDashboardData() async {
     if (!mounted) return;
     
     // Navigate to login screen
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-      (route) => false, // Remove all previous routes
-    );
+    context.go('/login');
   } catch (e) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

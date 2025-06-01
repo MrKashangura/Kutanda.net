@@ -1,5 +1,6 @@
 // lib/features/auctions/screens/buyer_dashboard.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../data/models/auction_model.dart';
@@ -141,10 +142,7 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
   }
 
   void _navigateToSearch() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const SearchExploreScreen()),
-    ).then((_) => _loadData());
+    context.push('/search_explore').then((_) => _loadData());
   }
 
   @override
@@ -161,10 +159,7 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
           IconButton(
             icon: const Icon(Icons.bookmarks),
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const WatchlistScreen()),
-              ).then((_) => _loadData());
+              context.push('/watchlist').then((_) => _loadData());
             },
             tooltip: 'Watchlist',
           ),
@@ -265,20 +260,11 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
                 WatchlistItemType.auction
               ),
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AuctionDetailScreen(auctionId: auction.id),
-                  ),
-                ).then((_) => _loadData());
+                context.push('/auction_detail/${auction.id}').then((_) => _loadData());
               },
               onBid: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AuctionDetailScreen(auctionId: auction.id),
-                  ),
-                ).then((_) => _loadData());
+                // Assuming bidding also navigates to detail screen first
+                context.push('/auction_detail/${auction.id}').then((_) => _loadData());
               },
             )),
             const SizedBox(height: 24),
@@ -302,30 +288,15 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
                 WatchlistItemType.fixedPrice
               ),
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => FixedPriceDetailScreen(listingId: listing.id),
-                  ),
-                ).then((_) => _loadData());
+                context.push('/fixed_price_detail/${listing.id}').then((_) => _loadData());
               },
               onAddToCart: () {
                 // Navigate to fixed price detail for add to cart
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => FixedPriceDetailScreen(listingId: listing.id),
-                  ),
-                ).then((_) => _loadData());
+                context.push('/fixed_price_detail/${listing.id}').then((_) => _loadData());
               },
               onBuyNow: () {
                 // Navigate to fixed price detail for direct purchase
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => FixedPriceDetailScreen(listingId: listing.id),
-                  ),
-                ).then((_) => _loadData());
+                context.push('/fixed_price_detail/${listing.id}').then((_) => _loadData());
               },
             )),
           ],
@@ -365,20 +336,11 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
               WatchlistItemType.auction
             ),
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AuctionDetailScreen(auctionId: auction.id),
-                ),
-              ).then((_) => _loadData());
+              context.push('/auction_detail/${auction.id}').then((_) => _loadData());
             },
             onBid: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AuctionDetailScreen(auctionId: auction.id),
-                ),
-              ).then((_) => _loadData());
+              // Assuming bidding also navigates to detail screen first
+              context.push('/auction_detail/${auction.id}').then((_) => _loadData());
             },
           );
         },
@@ -407,30 +369,15 @@ class _BuyerDashboardState extends State<BuyerDashboard> with SingleTickerProvid
               WatchlistItemType.fixedPrice
             ),
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => FixedPriceDetailScreen(listingId: listing.id),
-                ),
-              ).then((_) => _loadData());
+              context.push('/fixed_price_detail/${listing.id}').then((_) => _loadData());
             },
             onAddToCart: () {
               // Navigate to fixed price detail for add to cart
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => FixedPriceDetailScreen(listingId: listing.id),
-                ),
-              ).then((_) => _loadData());
+              context.push('/fixed_price_detail/${listing.id}').then((_) => _loadData());
             },
             onBuyNow: () {
               // Navigate to fixed price detail for direct purchase
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => FixedPriceDetailScreen(listingId: listing.id),
-                ),
-              ).then((_) => _loadData());
+              context.push('/fixed_price_detail/${listing.id}').then((_) => _loadData());
             },
           );
         },

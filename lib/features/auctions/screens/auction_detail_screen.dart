@@ -2,6 +2,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -856,12 +857,8 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen> {
               margin: const EdgeInsets.only(right: 12),
               child: InkWell(
                 onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => AuctionDetailScreen(auctionId: auction.id),
-                    ),
-                  );
+                  // Use context.go for replacing the current route
+                  context.go('/auction_detail/${auction.id}');
                 },
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

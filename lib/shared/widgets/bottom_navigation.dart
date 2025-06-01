@@ -1,5 +1,6 @@
 // lib/shared/widgets/bottom_navigation.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 
 enum NavDestination {
   dashboard,
@@ -182,24 +183,24 @@ extension NavExtension on State {
     switch (destination) {
       case NavDestination.dashboard:
         if (isSellerMode) {
-          Navigator.pushReplacementNamed(context, '/seller_dashboard');
+          context.go('/seller_dashboard');
         } else {
-          Navigator.pushReplacementNamed(context, '/buyer_dashboard');
+          context.go('/buyer_dashboard');
         }
         break;
       case NavDestination.explore:
-        Navigator.pushNamed(context, '/explore');
+        context.push('/explore'); // Or context.go if it should replace
         break;
       case NavDestination.create:
         if (isSellerMode) {
-          Navigator.pushNamed(context, '/create_auction');
+          context.push('/create_auction'); // Or context.go
         }
         break;
       case NavDestination.profile:
-        Navigator.pushNamed(context, '/profile');
+        context.push('/profile'); // Or context.go
         break;
       case NavDestination.settings:
-        Navigator.pushNamed(context, '/settings');
+        context.push('/settings'); // Or context.go
         break;
     }
   }

@@ -34,7 +34,7 @@ void main() {
     // Let's try to mock the global instance if ApiService is not refactored for DI.
     // This is tricky and might not work as expected without further setup.
     // A better approach is to refactor ApiService to accept SupabaseClient via constructor.
-    
+
     // For now, we will proceed by directly instantiating ApiService and mocking its internal Supabase client's parts.
     // This requires that when `Supabase.instance.client` is called within ApiService, it's our mock.
     // This is difficult. Let's assume we can refactor ApiService or find a way to inject.
@@ -90,7 +90,7 @@ void main() {
       reset(mockSupabaseFunctions);
       reset(mockSuccessResponse);
       reset(mockErrorResponse);
-      
+
       // Common stubbing for auth and functions client
       when(mockSupabaseClient.auth).thenReturn(mockGoTrueClient);
       when(mockSupabaseClient.functions).thenReturn(mockSupabaseFunctions);
@@ -160,7 +160,7 @@ void main() {
       reset(mockSupabaseFunctions);
       reset(mockSuccessResponse);
       reset(mockErrorResponse);
-      
+
       when(mockSupabaseClient.auth).thenReturn(mockGoTrueClient);
       when(mockSupabaseClient.functions).thenReturn(mockSupabaseFunctions);
 

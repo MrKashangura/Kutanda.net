@@ -1,5 +1,6 @@
 // lib/widgets/csr_drawer.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../screens/csr_analytics_screen.dart';
@@ -41,11 +42,8 @@ class CSRDrawer extends StatelessWidget {
             leading: const Icon(Icons.dashboard),
             title: const Text('Dashboard'),
             onTap: () {
-              Navigator.pop(context);
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const CSRDashboard()),
-              );
+              context.pop(); // Close drawer
+              context.go('/csr_dashboard');
             },
           ),
           
@@ -68,8 +66,8 @@ class CSRDrawer extends StatelessWidget {
             leading: const Icon(Icons.support_agent),
             title: const Text('Ticket Management'),
             onTap: () {
-              Navigator.pop(context);
-              // Already on dashboard with tickets
+              context.pop(); // Close drawer
+              // No navigation needed if already on dashboard, or context.go('/csr_dashboard');
             },
           ),
           
@@ -78,13 +76,8 @@ class CSRDrawer extends StatelessWidget {
             leading: const Icon(Icons.gavel),
             title: const Text('Dispute Resolution'),
             onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const CSRDisputeResolutionScreen(),
-                ),
-              );
+              context.pop(); // Close drawer
+              context.push('/dispute_resolution');
             },
           ),
           
@@ -93,13 +86,8 @@ class CSRDrawer extends StatelessWidget {
             leading: const Icon(Icons.content_paste),
             title: const Text('Content Moderation'),
             onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const CSRContentModerationScreen(),
-                ),
-              );
+              context.pop(); // Close drawer
+              context.push('/content_moderation');
             },
           ),
           
@@ -108,13 +96,8 @@ class CSRDrawer extends StatelessWidget {
             leading: const Icon(Icons.people),
             title: const Text('User Management'),
             onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const CSRUserManagementScreen(),
-                ),
-              );
+              context.pop(); // Close drawer
+              context.push('/user_management');
             },
           ),
           
@@ -125,13 +108,8 @@ class CSRDrawer extends StatelessWidget {
             leading: const Icon(Icons.analytics),
             title: const Text('Analytics Dashboard'),
             onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const CSRAnalyticsScreen(),
-                ),
-              );
+              context.pop(); // Close drawer
+              context.push('/analytics'); // CSR Analytics path
             },
           ),
           
@@ -143,13 +121,8 @@ class CSRDrawer extends StatelessWidget {
             leading: const Icon(Icons.person),
             title: const Text('Profile & Settings'),
             onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const CSRProfileScreen(),
-                ),
-              );
+              context.pop(); // Close drawer
+              context.push('/csr_profile');
             },
           ),
           
@@ -158,8 +131,8 @@ class CSRDrawer extends StatelessWidget {
             leading: const Icon(Icons.help),
             title: const Text('Help & Documentation'),
             onTap: () {
-              Navigator.pop(context);
-              _showHelpDialog(context);
+              context.pop(); // Close drawer
+              _showHelpDialog(context); // This shows a dialog
             },
           ),
         ],
@@ -200,7 +173,7 @@ class CSRDrawer extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop();
+                context.pop(); // Close the dialog
               },
               child: const Text('Close'),
             ),

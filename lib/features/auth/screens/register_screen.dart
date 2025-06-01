@@ -1,5 +1,6 @@
 // lib/features/auth/screens/register_screen.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/utils/constants.dart';
@@ -93,7 +94,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
         
         // Navigate to buyer dashboard
-        Navigator.pushReplacementNamed(context, '/buyer_dashboard');
+        context.go('/buyer_dashboard');
       }
     } on AuthException catch (e) {
       setState(() {
@@ -111,7 +112,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void _handleSocialSignIn(bool isSuccess, String message, bool isNewUser) {
     if (isSuccess) {
       // Navigate to buyer dashboard since social login defaults to buyer role
-      Navigator.pushReplacementNamed(context, '/buyer_dashboard');
+      context.go('/buyer_dashboard');
     } else {
       setState(() => _errorMessage = message);
     }
@@ -320,7 +321,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     TextButton(
                       onPressed: () {
-                        Navigator.pop(context);
+                        // Assuming '/login' is the route for the sign-in screen
+                        // If it's just popping back to a previous screen that might be login, context.pop() is fine.
+                        // If login screen is a specific destination: context.go('/login');
+                        // For now, matching Navigator.pop behavior.
+                        if (context.canPop()) {
+                          context.pop();
+                        } else {
+                          // Fallback if there's nothing to pop, go to login
+                          context.go('/login');
+                        }
                       },
                       child: const Text('Sign In'),
                     ),

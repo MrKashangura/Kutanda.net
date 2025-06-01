@@ -1,5 +1,6 @@
 // lib/features/support/screens/enhanced_admin_user_management_screen.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 
 import '../../../core/utils/helpers.dart';
 import '../widgets/admin_drawer.dart';
@@ -517,22 +518,16 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
             trailing: IconButton(
               icon: const Icon(Icons.navigate_next),
               onPressed: () {
-                // For demonstration, we'll show a snackbar
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Viewing details for ${user['display_name'] ?? user['email']}')),
-                );
+                context.push('/admin_users/${user['id']}');
               },
             ),
             onTap: () {
-              setState(() {
-                _selectedUsers[index] = !isSelected;
-              });
+              // Navigate to user detail screen on tap as well, or handle selection differently
+              context.push('/admin_users/${user['id']}');
             },
             onLongPress: () {
-              // For demonstration, we'll show a snackbar
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Viewing details for ${user['display_name'] ?? user['email']}')),
-              );
+              // Could be used for context menu or selection, but for now, also navigate
+              context.push('/admin_users/${user['id']}');
             },
             isThreeLine: true,
             contentPadding: const EdgeInsets.symmetric(horizontal: 8),

@@ -2,6 +2,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -177,7 +178,7 @@ class KycSubmissionScreenState extends State<KycSubmissionScreen> {
         );
         
         // Navigate back to previous screen
-        Navigator.pop(context);
+        context.pop();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to submit KYC documents. Please try again.')),
@@ -225,7 +226,8 @@ class KycSubmissionScreenState extends State<KycSubmissionScreen> {
               ),
               const SizedBox(height: 30),
               ElevatedButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => context.pop(),
+                onPressed: () => context.pop(),
                 child: const Text("Return to Dashboard"),
               ),
             ],

@@ -1,6 +1,7 @@
 // lib/features/payment/screens/order_confirmation_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/helpers.dart';
@@ -107,11 +108,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
           IconButton(
             icon: const Icon(Icons.home),
             onPressed: () {
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/buyer_dashboard',
-                (route) => false,
-              );
+              context.go('/buyer_dashboard');
             },
             tooltip: 'Go to Home',
           ),
@@ -461,11 +458,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
         const SizedBox(height: 24),
         ElevatedButton.icon(
           onPressed: () {
-            Navigator.pushNamedAndRemoveUntil(
-              context,
-              '/buyer_dashboard',
-              (route) => false,
-            );
+            context.go('/buyer_dashboard');
           },
           icon: const Icon(Icons.shopping_bag),
           label: const Text('Continue Shopping'),

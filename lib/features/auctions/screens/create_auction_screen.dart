@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -83,7 +84,7 @@ final auction = Auction(
     setState(() => _isUploading = false);
 
     if (!mounted) return;
-    Navigator.pop(context);
+    context.pop();
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Auction created successfully!")));
   }
 

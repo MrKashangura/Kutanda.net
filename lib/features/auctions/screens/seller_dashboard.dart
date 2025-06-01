@@ -1,5 +1,6 @@
 // lib/screens/seller_dashboard.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../data/models/auction_model.dart';
@@ -68,10 +69,7 @@ class _SellerDashboardState extends State<SellerDashboard> {
       if (!mounted) return;
 
       if (success) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const BuyerDashboard()),
-        );
+        context.go('/buyer_dashboard');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Switched to Buyer mode')),
         );
@@ -112,18 +110,19 @@ class _SellerDashboardState extends State<SellerDashboard> {
       if (!mounted) return;
       
       // Close loading dialog first
-      Navigator.of(context).pop();
+      if (Navigator.of(context).canPop()) { // Check if a dialog is open
+         context.pop(); // Pop the dialog
+      }
       
       // Navigate to login screen
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
+      context.go('/login');
     } catch (e) {
       if (!mounted) return;
       
       // Try to close dialog if open
-      Navigator.of(context, rootNavigator: true).pop();
+      if (Navigator.of(context).canPop()) {
+        context.pop();
+      }
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error logging out: $e')),
@@ -144,11 +143,11 @@ class _SellerDashboardState extends State<SellerDashboard> {
             "Are you sure you want to delete this auction? This action cannot be undone."),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () => context.pop(false), // Use context.pop
             child: const Text("Cancel"),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () => context.pop(true), // Use context.pop
             child: const Text("Delete",
                 style: TextStyle(color: Colors.red)),
           ),
@@ -171,7 +170,9 @@ class _SellerDashboardState extends State<SellerDashboard> {
         if (!mounted) return;
         
         // Close the loading dialog
-        Navigator.of(context).pop();
+        if (Navigator.of(context).canPop()) {
+            context.pop();
+        }
         
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
@@ -181,7 +182,9 @@ class _SellerDashboardState extends State<SellerDashboard> {
         if (!mounted) return;
         
         // Close the loading dialog
-        Navigator.of(context).pop();
+        if (Navigator.of(context).canPop()) {
+            context.pop();
+        }
         
         // Show error message
         ScaffoldMessenger.of(context).showSnackBar(
@@ -266,10 +269,7 @@ class _SellerDashboardState extends State<SellerDashboard> {
           if (_kycStatus != 'verified' && _kycStatus != 'pending')
             ElevatedButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const KycSubmissionScreen()),
-                );
+                context.push('/kyc_submission');
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: statusColor,
@@ -280,10 +280,7 @@ class _SellerDashboardState extends State<SellerDashboard> {
           if (_kycStatus == 'rejected')
             ElevatedButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const KycSubmissionScreen()),
-                );
+                context.push('/kyc_submission');
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: statusColor,
@@ -340,11 +337,7 @@ class _SellerDashboardState extends State<SellerDashboard> {
                       if (_isVerified)
                         ElevatedButton.icon(
                           onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const CreateAuctionScreen()),
-                            );
+                            context.push('/create_auction');
                           },
                           icon: const Icon(Icons.add),
                           label: const Text('New Auction'),
@@ -379,11 +372,7 @@ class _SellerDashboardState extends State<SellerDashboard> {
                                     const SizedBox(height: 16),
                                     ElevatedButton.icon(
                                       onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                              builder: (context) => const CreateAuctionScreen()),
-                                        );
+                                        context.push('/create_auction');
                                       },
                                       icon: const Icon(Icons.add),
                                       label: const Text('Create Your First Auction'),
@@ -544,10 +533,7 @@ class _SellerDashboardState extends State<SellerDashboard> {
       floatingActionButton: _isVerified
           ? FloatingActionButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const CreateAuctionScreen()),
-                );
+                context.push('/create_auction');
               },
               child: const Icon(Icons.add),
             )
@@ -561,10 +547,7 @@ class _SellerDashboardState extends State<SellerDashboard> {
           
           if (destination == NavDestination.create && !_isVerified) {
             // If not verified, redirect to KYC screen instead of create
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const KycSubmissionScreen()),
-            );
+            context.push('/kyc_submission');
           } else {
             handleNavigation(context, destination, true);
           }

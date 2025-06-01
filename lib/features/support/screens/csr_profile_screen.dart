@@ -1,5 +1,6 @@
 // lib/screens/csr_profile_screen.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../shared/services/onesignal_service.dart';
@@ -104,10 +105,7 @@ class _CSRProfileScreenState extends State<CSRProfileScreen> {
     if (!mounted) return;
     
     // Navigate to login screen
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-      (route) => false, // Remove all previous routes
-    );
+    context.go('/login');
   } catch (e) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

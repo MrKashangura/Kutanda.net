@@ -2,6 +2,7 @@ import 'dart:developer';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -56,10 +57,7 @@ class ProfileScreenState extends State<ProfileScreen> {
       if (user == null) {
         // Navigate to login screen if no user
         if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-        );
+        context.go('/login');
         return;
       }
       
@@ -214,10 +212,7 @@ class ProfileScreenState extends State<ProfileScreen> {
         await _supabase.auth.signOut();
         if (!mounted) return;
         
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-        );
+        context.go('/login');
       } catch (e) {
         log('Error signing out: $e');
         if (mounted) {

@@ -1,5 +1,6 @@
 // lib/screens/csr_dashboard.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../data/models/support_ticket_model.dart';
@@ -112,10 +113,7 @@ class _CSRDashboardState extends State<CSRDashboard> with SingleTickerProviderSt
     if (!mounted) return;
     
     // Navigate to login screen
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-      (route) => false, // Remove all previous routes
-    );
+    context.go('/login');
   } catch (e) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -206,7 +204,7 @@ class _CSRDashboardState extends State<CSRDashboard> with SingleTickerProviderSt
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () {
-                          Navigator.pushNamed(context, '/content_moderation');
+                          context.push('/content_moderation');
                         },
                         child: const Text('Go to Content Moderation'),
                       ),
@@ -228,7 +226,7 @@ class _CSRDashboardState extends State<CSRDashboard> with SingleTickerProviderSt
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () {
-                          Navigator.pushNamed(context, '/dispute_resolution');
+                          context.push('/dispute_resolution');
                         },
                         child: const Text('Go to Dispute Resolution'),
                       ),
@@ -250,7 +248,8 @@ class _CSRDashboardState extends State<CSRDashboard> with SingleTickerProviderSt
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () {
-                          Navigator.pushNamed(context, '/content_moderation');
+                          // Assuming this also goes to the general content moderation screen
+                          context.push('/content_moderation');
                         },
                         child: const Text('Go to Auction Moderation'),
                       ),
@@ -264,13 +263,8 @@ class _CSRDashboardState extends State<CSRDashboard> with SingleTickerProviderSt
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Navigate to analytics dashboard
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const CSRAnalyticsWidget(),
-            ),
-          );
+          // Navigate to analytics widget screen
+          context.push('/csr_analytics_widget');
         },
         tooltip: 'View Analytics',
         child: const Icon(Icons.analytics),

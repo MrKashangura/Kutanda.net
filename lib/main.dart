@@ -74,7 +74,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router( // Changed to MaterialApp.router
       title: AppStrings.appName,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -86,8 +86,8 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      routes: appRoutes, // Add this line to register all routes
-      home: const LoginScreen(),
+      routerConfig: router, // Provide the router instance from lib/config/routes.dart
+      // The 'routes' and 'home' properties are removed as they are managed by GoRouter.
     );
   }
 }

@@ -40,9 +40,9 @@ void main() {
       test('returns UserModel on success', () async {
         when(mockApiService.get('users?id=eq.$userId&limit=1'))
             .thenAnswer((_) async => {'data': testUserListMap}); // API returns a list
-        
+
         final result = await userRepository.getUserById(userId);
-        
+
         expect(result, isA<UserModel>());
         expect(result!.uid, userId);
       });
@@ -75,9 +75,9 @@ void main() {
       test('returns user role string on success', () async {
         when(mockApiService.get('users?uid=eq.$userId&select=role&limit=1'))
             .thenAnswer((_) async => {'data': [{'role': role}]});
-        
+
         final result = await userRepository.getUserRole(userId);
-        
+
         expect(result, role);
       });
 
@@ -87,7 +87,7 @@ void main() {
         final result = await userRepository.getUserRole(userId);
         expect(result, isNull);
       });
-      
+
        test('returns null if data list is empty', () async {
         when(mockApiService.get('users?uid=eq.$userId&select=role&limit=1'))
             .thenAnswer((_) async => {'data': []});
@@ -114,9 +114,9 @@ void main() {
         };
         when(mockApiService.post('users', createUserData))
             .thenAnswer((_) async => {'data': testUserMap}); // Simulate successful response
-        
+
         final result = await userRepository.createUser(testUser);
-        
+
         expect(result, isTrue);
         verify(mockApiService.post('users', createUserData)).called(1);
       });
@@ -144,9 +144,9 @@ void main() {
         };
         when(mockApiService.put('users?uid=eq.${testUser.uid}', updateUserData))
             .thenAnswer((_) async => {'data': testUserMap});
-        
+
         final result = await userRepository.updateUser(testUser);
-        
+
         expect(result, isTrue);
       });
       test('returns false when ApiService returns null', () async {
@@ -167,9 +167,9 @@ void main() {
       test('returns true on successful deletion', () async {
         when(mockApiService.delete('users?uid=eq.$userId'))
             .thenAnswer((_) async => {'status': 'success'});
-        
+
         final result = await userRepository.deleteUser(userId);
-        
+
         expect(result, isTrue);
       });
       test('returns false when ApiService returns null', () async {
@@ -184,9 +184,9 @@ void main() {
       test('returns list of users on success (no filters)', () async {
         when(mockApiService.get('users?select=*'))
             .thenAnswer((_) async => {'data': testUserListMap});
-        
+
         final result = await userRepository.getAllUsers();
-        
+
         expect(result.length, 1);
         expect(result.first.uid, testUser.uid);
       });
@@ -195,9 +195,9 @@ void main() {
         const searchQuery = 'test';
         when(mockApiService.get('users?select=*&or=(email.ilike.%$searchQuery%,phone.ilike.%$searchQuery%)'))
             .thenAnswer((_) async => {'data': testUserListMap});
-        
+
         final result = await userRepository.getAllUsers(searchQuery: searchQuery);
-        
+
         expect(result.length, 1);
       });
 
@@ -205,20 +205,20 @@ void main() {
         const roleFilter = 'buyer';
         when(mockApiService.get('users?select=*&role=eq.$roleFilter'))
             .thenAnswer((_) async => {'data': testUserListMap});
-        
+
         final result = await userRepository.getAllUsers(roleFilter: roleFilter);
-        
+
         expect(result.length, 1);
       });
-      
+
       test('returns list of users with search query and role filter', () async {
         const searchQuery = 'test';
         const roleFilter = 'buyer';
         when(mockApiService.get('users?select=*&or=(email.ilike.%$searchQuery%,phone.ilike.%$searchQuery%)&role=eq.$roleFilter'))
             .thenAnswer((_) async => {'data': testUserListMap});
-        
+
         final result = await userRepository.getAllUsers(searchQuery: searchQuery, roleFilter: roleFilter);
-        
+
         expect(result.length, 1);
       });
 
@@ -234,9 +234,9 @@ void main() {
       test('returns true if email exists', () async {
         when(mockApiService.get('users?email=eq.$email&select=email&limit=1'))
             .thenAnswer((_) async => {'data': [{'email': email}]});
-        
+
         final result = await userRepository.emailExists(email);
-        
+
         expect(result, isTrue);
       });
 
@@ -260,9 +260,9 @@ void main() {
       test('returns true if phone exists', () async {
         when(mockApiService.get('users?phone=eq.$phone&select=phone&limit=1'))
             .thenAnswer((_) async => {'data': [{'phone': phone}]});
-        
+
         final result = await userRepository.phoneExists(phone);
-        
+
         expect(result, isTrue);
       });
 
@@ -272,7 +272,7 @@ void main() {
         final result = await userRepository.phoneExists(phone);
         expect(result, isFalse);
       });
-      
+
       test('returns false when ApiService returns null', () async {
         when(mockApiService.get('users?phone=eq.$phone&select=phone&limit=1'))
             .thenAnswer((_) async => null);

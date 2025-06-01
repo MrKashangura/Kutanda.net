@@ -36,7 +36,7 @@ class AuctionRepository {
     try {
       // Adjust the endpoint to include ordering if your ApiService/Supabase function supports it
       // For example, 'auctions?order=created_at.desc'
-      final response = await _apiService.get('auctions?order=created_at.desc'); 
+      final response = await _apiService.get('auctions?order=created_at.desc');
       if (response != null && response['data'] is List) {
         final dataList = response['data'] as List;
         return dataList.map((data) => Auction.fromMap(data as Map<String, dynamic>)).toList();
@@ -86,7 +86,7 @@ class AuctionRepository {
   /// Get auction by ID
   Future<Auction?> getAuctionById(String auctionId) async {
     try {
-      // Endpoint adjusted to fetch a single auction by ID. 
+      // Endpoint adjusted to fetch a single auction by ID.
       // Supabase GET request with `limit=1` on a unique ID will return an array with one or zero elements.
       final response = await _apiService.get('auctions?id=eq.$auctionId&limit=1');
       if (response != null && response['data'] is List) {

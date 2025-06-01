@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key}); // ✅ FIXED: Use Dart's super parameter
@@ -21,7 +22,8 @@ class AppDrawer extends StatelessWidget {
             leading: Icon(Icons.home),
             title: Text("Home"),
             onTap: () {
-              Navigator.pushReplacementNamed(context, '/home');
+              context.go('/home');
+              Navigator.pop(context); // Close the drawer
             },
           ),
           // Buyer Dashboard
@@ -29,7 +31,8 @@ class AppDrawer extends StatelessWidget {
             leading: Icon(Icons.person),
             title: Text("Buyer Dashboard"),
             onTap: () {
-              Navigator.pushReplacementNamed(context, '/buyer_dashboard');
+              context.go('/buyer_dashboard');
+              Navigator.pop(context); // Close the drawer
             },
           ),
           // Seller Dashboard
@@ -37,7 +40,8 @@ class AppDrawer extends StatelessWidget {
             leading: Icon(Icons.store),
             title: Text("Seller Dashboard"),
             onTap: () {
-              Navigator.pushReplacementNamed(context, '/seller_dashboard');
+              context.go('/seller_dashboard');
+              Navigator.pop(context); // Close the drawer
             },
           ),
           // Admin Dashboard
@@ -45,7 +49,8 @@ class AppDrawer extends StatelessWidget {
             leading: Icon(Icons.admin_panel_settings),
             title: Text("Admin Dashboard"),
             onTap: () {
-              Navigator.pushReplacementNamed(context, '/admin_dashboard');
+              context.go('/admin_dashboard');
+              Navigator.pop(context); // Close the drawer
             },
           ),
           // Role Switch
@@ -53,7 +58,8 @@ class AppDrawer extends StatelessWidget {
             leading: Icon(Icons.swap_horiz),
             title: Text("Switch Role"),
             onTap: () {
-              Navigator.pushNamed(context, '/role_switch');
+              context.push('/role_switch');
+              Navigator.pop(context); // Close the drawer
             },
           ),
           // Logout (if needed)

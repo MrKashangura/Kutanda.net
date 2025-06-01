@@ -1,5 +1,6 @@
 // lib/features/support/widgets/admin_drawer.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../shared/services/session_service.dart';
@@ -43,11 +44,8 @@ class AdminDrawer extends StatelessWidget {
             leading: const Icon(Icons.dashboard),
             title: const Text('Dashboard'),
             onTap: () {
-              Navigator.pop(context);
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const AdminDashboard()),
-              );
+              context.pop(); // Close drawer
+              context.go('/admin_dashboard');
             },
           ),
           
@@ -70,13 +68,8 @@ class AdminDrawer extends StatelessWidget {
             leading: const Icon(Icons.manage_accounts),
             title: const Text('User Management'),
             onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AdminUserManagementScreen(),
-                ),
-              );
+              context.pop(); // Close drawer
+              context.push('/admin_users');
             },
           ),
           
@@ -85,13 +78,8 @@ class AdminDrawer extends StatelessWidget {
             leading: const Icon(Icons.support_agent),
             title: const Text('CSR Management'),
             onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AdminCsrManagementScreen(),
-                ),
-              );
+              context.pop(); // Close drawer
+              context.push('/admin_csrs');
             },
           ),
           
@@ -100,13 +88,8 @@ class AdminDrawer extends StatelessWidget {
             leading: const Icon(Icons.content_paste),
             title: const Text('Content Moderation'),
             onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AdminContentModerationScreen(),
-                ),
-              );
+              context.pop(); // Close drawer
+              context.push('/admin_content');
             },
           ),
           
@@ -129,13 +112,8 @@ class AdminDrawer extends StatelessWidget {
             leading: const Icon(Icons.analytics),
             title: const Text('Analytics & Reports'),
             onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AdminAnalyticsScreen(),
-                ),
-              );
+              context.pop(); // Close drawer
+              context.push('/admin_analytics');
             },
           ),
           
@@ -144,13 +122,8 @@ class AdminDrawer extends StatelessWidget {
             leading: const Icon(Icons.settings),
             title: const Text('System Configuration'),
             onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AdminSystemConfigScreen(),
-                ),
-              );
+              context.pop(); // Close drawer
+              context.push('/admin_config');
             },
           ),
           
@@ -159,7 +132,7 @@ class AdminDrawer extends StatelessWidget {
             leading: const Icon(Icons.security),
             title: const Text('Security'),
             onTap: () {
-              Navigator.pop(context);
+              context.pop(); // Close drawer
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Security module coming soon')),
               );
@@ -173,15 +146,13 @@ class AdminDrawer extends StatelessWidget {
             leading: const Icon(Icons.logout),
             title: const Text('Logout'),
             onTap: () async {
+              context.pop(); // Close drawer first
               try {
                 await Supabase.instance.client.auth.signOut();
                 await SessionService.clearSession();
                 
                 if (context.mounted) {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    (route) => false,
-                  );
+                  context.go('/login'); // Navigate to login screen
                 }
               } catch (e) {
                 if (context.mounted) {
@@ -198,8 +169,8 @@ class AdminDrawer extends StatelessWidget {
             leading: const Icon(Icons.help),
             title: const Text('Help & Documentation'),
             onTap: () {
-              Navigator.pop(context);
-              _showHelpDialog(context);
+              context.pop(); // Close drawer
+              _showHelpDialog(context); // This shows a dialog, not a screen navigation
             },
           ),
         ],
@@ -241,7 +212,7 @@ class AdminDrawer extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop();
+                context.pop(); // Close the dialog
               },
               child: const Text('Close'),
             ),

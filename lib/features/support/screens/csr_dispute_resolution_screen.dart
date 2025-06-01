@@ -1,5 +1,6 @@
 // lib/screens/csr_dispute_resolution_screen.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 
 import '../../../data/models/support_ticket_model.dart';
 import '../../../services/support_ticket_service.dart';
@@ -176,11 +177,7 @@ class _CSRDisputeResolutionScreenState extends State<CSRDisputeResolutionScreen>
                 OutlinedButton(
                   onPressed: () {
                     // Navigate to related ticket
-                    Navigator.pushNamed(
-                      context, 
-                      '/ticket_detail',
-                      arguments: dispute.ticketId,
-                    );
+                    context.push('/ticket_detail/${dispute.ticketId}');
                   },
                   child: const Text('View Ticket'),
                 ),

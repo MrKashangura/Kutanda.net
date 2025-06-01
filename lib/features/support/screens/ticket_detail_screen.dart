@@ -1,5 +1,6 @@
 // lib/screens/ticket_detail_screen.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/utils/helpers.dart';
@@ -136,7 +137,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Ticket not found')),
           );
-          Navigator.pop(context);
+          context.pop();
         }
         return;
       }
@@ -403,7 +404,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => context.pop(), // Use context.pop
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -415,7 +416,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                   return;
                 }
                 
-                Navigator.pop(context);
+                context.pop(); // Use context.pop
                 
                 // Create dispute ticket
                 final dispute = DisputeTicket(

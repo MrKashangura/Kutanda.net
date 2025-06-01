@@ -38,7 +38,7 @@ class UserRepository {
       // Fetching a specific field 'role' for a user.
       // The 'uid' field is used here as per the original Supabase query.
       final response = await _apiService.get('users?uid=eq.$userId&select=role&limit=1');
-      
+
       if (response != null && response['data'] is List) {
         final dataList = response['data'] as List;
         if (dataList.isNotEmpty && dataList.first is Map) {

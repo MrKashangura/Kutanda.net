@@ -92,18 +92,18 @@ class ApiService {
         log('No authenticated user');
         return null;
       }
-      
+
       final response = await supabase.functions.invoke(
         endpoint,
         method: HttpMethod.put,
         body: data,
       );
-      
+
       if (response.status != 200) {
         log('Error: ${response.status}');
         return null;
       }
-      
+
       return response.data;
     } catch (e) {
       log('Error making PUT request: $e');
@@ -119,18 +119,18 @@ class ApiService {
         log('No authenticated user');
         return null;
       }
-      
+
       final response = await supabase.functions.invoke(
         endpoint,
         method: HttpMethod.delete,
         body: data,
       );
-      
+
       if (response.status != 200) {
         log('Error: ${response.status}');
         return null;
       }
-      
+
       return response.data;
     } catch (e) {
       log('Error making DELETE request: $e');
@@ -146,18 +146,18 @@ class ApiService {
         log('No authenticated user');
         return null;
       }
-      
+
       final response = await supabase.functions.invoke(
         endpoint,
         method: HttpMethod.patch,
         body: data,
       );
-      
+
       if (response.status != 200) {
         log('Error: ${response.status}');
         return null;
       }
-      
+
       return response.data;
     } catch (e) {
       log('Error making PATCH request: $e');

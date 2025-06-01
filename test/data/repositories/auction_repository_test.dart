@@ -22,7 +22,7 @@ void main() {
   setUp(() {
     mockApiService = MockApiService();
     mockSupabaseClient = MockSupabaseClient();
-    
+
     // Initialize the repository with mocks
     auctionRepository = AuctionRepository(
       apiService: mockApiService,
@@ -71,9 +71,9 @@ void main() {
       test('returns true on successful creation', () async {
         when(mockApiService.post('auctions', testAuctionMap))
             .thenAnswer((_) async => {'data': testAuctionMap}); // Simulate successful response
-        
+
         final result = await auctionRepository.createAuction(testAuction);
-        
+
         expect(result, isTrue);
         verify(mockApiService.post('auctions', testAuctionMap)).called(1);
       });
@@ -81,18 +81,18 @@ void main() {
       test('returns false when ApiService returns null', () async {
         when(mockApiService.post('auctions', testAuctionMap))
             .thenAnswer((_) async => null);
-        
+
         final result = await auctionRepository.createAuction(testAuction);
-        
+
         expect(result, isFalse);
       });
 
       test('returns false on ApiService exception', () async {
         when(mockApiService.post('auctions', testAuctionMap))
             .thenThrow(Exception('API Error'));
-        
+
         final result = await auctionRepository.createAuction(testAuction);
-        
+
         expect(result, isFalse);
       });
     });
@@ -101,9 +101,9 @@ void main() {
       test('returns list of auctions on success', () async {
         when(mockApiService.get('auctions?order=created_at.desc'))
             .thenAnswer((_) async => {'data': testAuctionListMap});
-        
+
         final result = await auctionRepository.getAllAuctions();
-        
+
         expect(result, isA<List<Auction>>());
         expect(result.length, 1);
         expect(result.first.id, testAuction.id);
@@ -112,27 +112,27 @@ void main() {
       test('returns empty list when ApiService returns null', () async {
         when(mockApiService.get('auctions?order=created_at.desc'))
             .thenAnswer((_) async => null);
-        
+
         final result = await auctionRepository.getAllAuctions();
-        
+
         expect(result, isEmpty);
       });
 
        test('returns empty list when ApiService response data is not a list', () async {
         when(mockApiService.get('auctions?order=created_at.desc'))
             .thenAnswer((_) async => {'data': 'not_a_list'});
-        
+
         final result = await auctionRepository.getAllAuctions();
-        
+
         expect(result, isEmpty);
       });
 
       test('returns empty list on ApiService exception', () async {
         when(mockApiService.get('auctions?order=created_at.desc'))
             .thenThrow(Exception('API Error'));
-        
+
         final result = await auctionRepository.getAllAuctions();
-        
+
         expect(result, isEmpty);
       });
     });
@@ -141,9 +141,9 @@ void main() {
       test('returns list of active auctions on success', () async {
         when(mockApiService.get('auctions?is_active=eq.true&order=created_at.desc'))
             .thenAnswer((_) async => {'data': testAuctionListMap});
-        
+
         final result = await auctionRepository.getActiveAuctions();
-        
+
         expect(result.length, 1);
         expect(result.first.id, testAuction.id);
       });
@@ -160,9 +160,9 @@ void main() {
       test('returns list of seller auctions on success', () async {
         when(mockApiService.get('auctions?seller_id=eq.$sellerId&order=created_at.desc'))
             .thenAnswer((_) async => {'data': testAuctionListMap});
-        
+
         final result = await auctionRepository.getSellerAuctions(sellerId);
-        
+
         expect(result.length, 1);
         expect(result.first.id, testAuction.id);
       });
@@ -179,9 +179,9 @@ void main() {
       test('returns auction on success', () async {
         when(mockApiService.get('auctions?id=eq.$auctionId&limit=1'))
             .thenAnswer((_) async => {'data': testAuctionListMap}); // API returns a list
-        
+
         final result = await auctionRepository.getAuctionById(auctionId);
-        
+
         expect(result, isNotNull);
         expect(result!.id, auctionId);
       });
@@ -189,18 +189,18 @@ void main() {
       test('returns null if auction not found (empty list from API)', () async {
         when(mockApiService.get('auctions?id=eq.$auctionId&limit=1'))
             .thenAnswer((_) async => {'data': []});
-        
+
         final result = await auctionRepository.getAuctionById(auctionId);
-        
+
         expect(result, isNull);
       });
 
       test('returns null when ApiService returns null', () async {
         when(mockApiService.get('auctions?id=eq.$auctionId&limit=1'))
             .thenAnswer((_) async => null);
-        
+
         final result = await auctionRepository.getAuctionById(auctionId);
-        
+
         expect(result, isNull);
       });
     });
@@ -209,9 +209,9 @@ void main() {
       test('returns true on successful update', () async {
         when(mockApiService.put('auctions?id=eq.${testAuction.id}', testAuctionMap))
             .thenAnswer((_) async => {'data': testAuctionMap});
-        
+
         final result = await auctionRepository.updateAuction(testAuction);
-        
+
         expect(result, isTrue);
       });
       test('returns false when ApiService returns null', () async {
@@ -227,9 +227,9 @@ void main() {
       test('returns true on successful deletion', () async {
         when(mockApiService.delete('auctions?id=eq.$auctionId'))
             .thenAnswer((_) async => {'status': 'success'}); // Success indicator
-        
+
         final result = await auctionRepository.deleteAuction(auctionId);
-        
+
         expect(result, isTrue);
       });
        test('returns false when ApiService returns null', () async {
@@ -253,9 +253,9 @@ void main() {
       test('returns true on successful bid placement', () async {
         when(mockApiService.post('place-bid', bidData))
             .thenAnswer((_) async => {'data': {'success': true}});
-        
+
         final result = await auctionRepository.placeBid(auctionId, bidAmount, bidderId);
-        
+
         expect(result, isTrue);
       });
 
@@ -265,7 +265,7 @@ void main() {
         final result = await auctionRepository.placeBid(auctionId, bidAmount, bidderId);
         expect(result, isFalse);
       });
-      
+
       test('returns false if bid placement response is not as expected', () async {
          when(mockApiService.post('place-bid', bidData))
             .thenAnswer((_) async => {'data': {'unexpected_key': true}}); // Malformed success response
@@ -290,9 +290,9 @@ void main() {
         const queryString = 'bids?auction_id=eq.$auctionId&select=*,bidder:profiles!bidder_id(display_name,email)&order=created_at.desc';
         when(mockApiService.get(queryString))
             .thenAnswer((_) async => {'data': bidsListMap});
-        
+
         final result = await auctionRepository.getAuctionBids(auctionId);
-        
+
         expect(result, isA<List<Map<String, dynamic>>>());
         expect(result.length, 1);
         expect(result.first['bid_id'], 'b1');
@@ -314,7 +314,7 @@ void main() {
       // Specific setup for stream tests if different from general ApiService tests
       // Ensure the mockSupabaseClient.from().stream()... chain is correctly set up.
       // This might involve creating specific mock instances for each call in the chain if they return different types.
-      
+
       // Example of more specific setup for a stream that returns List<Auction>
       final mockStreamFilterBuilderForAuctions = MockStreamPostgrestFilterBuilder<List<Map<String, dynamic>>>();
       when(mockSupabaseClient.from('auctions')).thenReturn(mockPostgrestFilterBuilderListMap);
@@ -337,7 +337,7 @@ void main() {
         return Stream.value([{'bid_id': 'b1'}]).map(mapper);
       });
     });
-    
+
     test('listenToAuctions sets up stream correctly', () {
       final stream = auctionRepository.listenToAuctions();
       expect(stream, isA<Stream<List<Auction>>>());
@@ -376,7 +376,7 @@ void main() {
       const auctionId = 'auction_id_test';
       final stream = auctionRepository.listenToAuctionBids(auctionId);
       expect(stream, isA<Stream<List<Map<String, dynamic>>>>());
-      
+
       stream.listen(
         expectAsync1((bids) {
           expect(bids, isA<List<Map<String, dynamic>>>());
